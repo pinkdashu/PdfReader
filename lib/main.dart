@@ -94,7 +94,7 @@ class Home extends StatelessWidget {
       body: Center(
         child: TextButton(
           onPressed: () => _pressHomeBtn(context),
-          child: Text('打开文件'),
+          child: Text('Open Pdf'),
         ),
       ),
     );
@@ -126,6 +126,7 @@ class ScrollControllerTestRoute extends StatefulWidget {
 class ScrollControllerTestRouteState extends State<ScrollControllerTestRoute> {
   ScrollController _controller = ScrollController();
   bool showToTopBtn = false; //是否显示“返回到顶部”按钮
+  String barTitle = "Loading";
   double scale = 2;
   SimplePdfRender? _simplePdfRender;
   List<Size>? pageInfo;
@@ -170,7 +171,7 @@ class ScrollControllerTestRouteState extends State<ScrollControllerTestRoute> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: Text("滚动控制")),
+      appBar: AppBar(title: Text(barTitle)),
       body: Scrollbar(
           controller: _controller,
           child: NotificationListener(
@@ -227,73 +228,6 @@ class ScrollControllerTestRouteState extends State<ScrollControllerTestRoute> {
                   curve: Curves.ease,
                 );
               }),
-    );
-  }
-}
-
-class ScrollStatus extends StatefulWidget {
-  @override
-  _ScrollStatusState createState() => _ScrollStatusState();
-}
-
-class _ScrollStatusState extends State<ScrollStatus> {
-  String message = "";
-
-  _onStartScroll(ScrollMetrics metrics) {
-    setState(() {
-      message = "Scroll Start";
-    });
-  }
-
-  _onUpdateScroll(ScrollMetrics metrics) {
-    setState(() {
-      message = "Scroll Update";
-    });
-  }
-
-  _onEndScroll(ScrollMetrics metrics) {
-    setState(() {
-      message = "Scroll End";
-    });
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: Text("Scroll Status"),
-      ),
-      body: Column(
-        children: <Widget>[
-          Container(
-            height: 50.0,
-            color: Colors.green,
-            child: Center(
-              child: Text(message),
-            ),
-          ),
-          Expanded(
-            child: NotificationListener<ScrollNotification>(
-              onNotification: (scrollNotification) {
-                if (scrollNotification is ScrollStartNotification) {
-                  _onStartScroll(scrollNotification.metrics);
-                } else if (scrollNotification is ScrollUpdateNotification) {
-                  _onUpdateScroll(scrollNotification.metrics);
-                } else if (scrollNotification is ScrollEndNotification) {
-                  _onEndScroll(scrollNotification.metrics);
-                }
-                return true;
-              },
-              child: ListView.builder(
-                itemCount: 30,
-                itemBuilder: (context, index) {
-                  return ListTile(title: Text("Index : $index"));
-                },
-              ),
-            ),
-          ),
-        ],
-      ),
     );
   }
 }

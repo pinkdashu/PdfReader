@@ -5,7 +5,6 @@ import 'dart:io';
 import 'dart:isolate';
 import 'dart:typed_data';
 import 'dart:ui' as ui;
-import 'package:flutter/material.dart';
 import 'package:flutter/widgets.dart' as widget;
 import 'package:ffi/ffi.dart';
 import 'package:flutter/services.dart';
@@ -200,11 +199,6 @@ class PdfRender {
       final err = pdfium.FPDF_GetLastError();
       throw PdfiumException.fromErrorCode(err);
     }
-    // for (var i = 0; i < getpageInfo(); i++) {
-    //   loadPage(i);
-    //   getPageHeight();
-    //   getPageWidth();
-    // }
     return this;
   }
 
@@ -269,15 +263,18 @@ class PdfRender {
     return _pageCache[index]!;
   }
 
+  Pointer<FS_SIZEF> size = malloc.allocate<FS_SIZEF>(sizeOf<FS_SIZEF>());
+
   List<ui.Size> getPageInfo() {
     int count = getPageCount();
     List<ui.Size> pageInfo = [];
+    var start = DateTime.now();
+
     for (var i = 0; i < count; i++) {
-      final page = getPage(i);
-      pageInfo.add(ui.Size(
-          pdfium.FPDF_GetPageWidthF(page), pdfium.FPDF_GetPageHeightF(page)));
+      pdfium.FPDF_GetPageSizeByIndexF(_document!, i, size);
+      pageInfo.add(ui.Size(size[0].width, size[0].height));
     }
-    getPage(0);
+    print("get page costs ${DateTime.now().difference(start)}");
     return pageInfo;
   }
 
