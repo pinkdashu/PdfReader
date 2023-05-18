@@ -90,12 +90,12 @@ BEGIN
         BLOCK "040904e4"
         BEGIN
             VALUE "CompanyName", "com.example" "\0"
-            VALUE "FileDescription", "lazyload" "\0"
+            VALUE "FileDescription", "pdfreader" "\0"
             VALUE "FileVersion", VERSION_AS_STRING "\0"
-            VALUE "InternalName", "lazyload" "\0"
+            VALUE "InternalName", "pdfreader" "\0"
             VALUE "LegalCopyright", "Copyright (C) 2023 com.example. All rights reserved." "\0"
-            VALUE "OriginalFilename", "lazyload.exe" "\0"
-            VALUE "ProductName", "lazyload" "\0"
+            VALUE "OriginalFilename", "pdfreader.exe" "\0"
+            VALUE "ProductName", "pdfreader" "\0"
             VALUE "ProductVersion", VERSION_AS_STRING "\0"
         END
     END

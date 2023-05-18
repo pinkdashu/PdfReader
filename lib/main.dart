@@ -3,99 +3,8 @@ import 'dart:ui';
 
 import 'package:flutter/material.dart';
 import 'package:file_picker/file_picker.dart';
-import 'PdfRender.dart';
+import 'pdf_render.dart';
 import 'package:async/async.dart';
-
-// var pdfRender = new PdfRender();
-
-// // void multiThread() {
-// //   print('multiThread start');
-
-// //   ReceivePort r1 = ReceivePort();
-// //   SendPort p1 = r1.sendPort;
-
-// //   Isolate.spawn(newThread, message);
-// // }
-
-// // void newThread(Map ) {
-// //   print('newThread start');
-
-// // }
-
-// void _isolateMain(Map receive) async {
-//   RootIsolateToken rootIsolateToken = receive['rootIsolateToken'];
-//   ReceivePort r2 = ReceivePort();
-//   SendPort p2 = r2.sendPort;
-//   SendPort p1 = receive['sendPort'];
-//   String path = receive['path'];
-//   BackgroundIsolateBinaryMessenger.ensureInitialized(rootIsolateToken);
-//   PdfRender pdfRender = PdfRender();
-//   pdfRender.loadDocumentFromPath(path);
-
-//   //pdfRender.savePageAsPng('outPath.png');
-//   p1.send(p2);
-//   r2.listen((message) {
-//     if (message is SendPort) {
-//       print('双向通信成功');
-//     }
-//     if (message is int) {}
-//     pdfRender.getPage(message as int);
-//     pdfRender.RenderPageAsPng();
-//   });
-// }
-
-// class IsolateConnector {
-//   late ReceivePort r1;
-//   late SendPort p2;
-
-//   void startIsolate({String path = '1417.pdf'}) async {
-//     r1 = ReceivePort();
-//     RootIsolateToken rootIsolateToken = RootIsolateToken.instance!;
-//     Map send = {
-//       'rootIsolateToken': rootIsolateToken,
-//       'sendPort': r1.sendPort,
-//       'path': path
-//     };
-//     Isolate.spawn(_isolateMain, send);
-//   }
-//   Future<Image> getImage(int index)
-//   {
-
-//     r1.listen((message) {
-//       if (message is SendPort) {
-//         print('双向通信成功');
-//         p2 = message;
-//       }
-//       if (message is Image) {
-//         print('pdf Render succeed');
-//         return
-//       }
-//     });
-
-//   }
-// }
-
-// Future sendToReceive(SendPort port, msg) {
-//   ReceivePort response = ReceivePort();
-//   port.send([msg, response.sendPort]);
-//   return response.first;
-// }
-
-// class PdfPage extends StatelessWidget {
-//   const PdfPage({super.key});
-
-//   @override
-//   Widget build(BuildContext context) {
-//     // pdfRender.loadPage(index);
-//     // TODO: implement build
-//     return Image(
-//       width: pdfRender.getPageWidth(),
-//       height: pdfRender.getPageHeight(),
-//       image: Image.memory(pdfRender.RenderPageAsPng(scale: 1)).image,
-//       fit: BoxFit.fill,
-//     );
-//   }
-// }
 
 class PdfPageStateful extends StatefulWidget {
   late SimplePdfRender simplePdfRender;
@@ -125,9 +34,6 @@ class PdfPageStatefulState extends State<PdfPageStateful> {
         _isLoading = false;
       });
     }
-    //_image = await Image.memory(pdfRender.RenderPageAsPng());
-    //await Future.delayed(const Duration(seconds: 1));
-    //print('render succeed');
   }
 
   @override
@@ -163,17 +69,16 @@ class PdfPageStatefulState extends State<PdfPageStateful> {
   @override
   Widget build(BuildContext context) {
     print('BUILD');
-    return Container(
-      child: Center(
-        child: _isLoading ? CircularProgressIndicator() : _image!,
-      ),
+    return Center(
+      child: _isLoading ? CircularProgressIndicator() : _image!,
     );
   }
 }
 
 void main(List<String> args) async {
   runApp(MaterialApp(
-    title: 'lazyLoading',
+    debugShowCheckedModeBanner: false,
+    title: 'PdfReader',
     theme: ThemeData(primarySwatch: Colors.blue),
     home: Home(),
   ));
@@ -221,15 +126,16 @@ class ScrollControllerTestRoute extends StatefulWidget {
 class ScrollControllerTestRouteState extends State<ScrollControllerTestRoute> {
   ScrollController _controller = ScrollController();
   bool showToTopBtn = false; //是否显示“返回到顶部”按钮
+  double scale = 2;
   SimplePdfRender? _simplePdfRender;
   List<Size>? pageInfo;
   @override
   void initState() {
     super.initState();
-    // pdfRender = new PdfRender();
     if (widget.path == null) {
       throw Exception('Can not get path');
     }
+
     SimplePdfRender.open(widget.path!).then((value) {
       _simplePdfRender = value;
       _simplePdfRender!.getPageInfo().first.then((value) => {
@@ -258,7 +164,6 @@ class ScrollControllerTestRouteState extends State<ScrollControllerTestRoute> {
   void dispose() {
     //为了避免内存泄露，需要调用_controller.dispose
     _controller.dispose();
-    // pdfRender.dispose();
     super.dispose();
   }
 
@@ -287,21 +192,27 @@ class ScrollControllerTestRouteState extends State<ScrollControllerTestRoute> {
                 ? Center()
                 : ListView.builder(
                     itemCount: pageInfo!.length,
-                    //itemExtent: 50.0, //列表项高度固定时，显式指定高度是一个好习惯(性能消耗小)
                     controller: _controller,
                     itemBuilder: (context, index) {
-                      // pdfRender.loadPage(index);
-                      // print(pdfRender.getPageWidth().toString());
-                      return Container(
+                      return Center(
+                          child: Container(
                         alignment: Alignment.topCenter,
-                        width: pageInfo![index].width,
-                        height: pageInfo![index].height,
-                        child: PdfPageStateful(
-                          simplePdfRender: _simplePdfRender!,
-                          index: index,
-                          scale: 2,
-                        ),
-                      );
+                        width: pageInfo![index].width * scale,
+                        child: AspectRatio(
+                            aspectRatio: pageInfo![index].width /
+                                pageInfo![index].height,
+                            child: FittedBox(
+                              child: SizedBox(
+                                width: pageInfo![index].width * scale,
+                                height: pageInfo![index].height * scale,
+                                child: PdfPageStateful(
+                                  simplePdfRender: _simplePdfRender!,
+                                  index: index,
+                                  scale: 1,
+                                ),
+                              ),
+                            )),
+                      ));
                     }),
           )),
       floatingActionButton: !showToTopBtn
@@ -316,35 +227,6 @@ class ScrollControllerTestRouteState extends State<ScrollControllerTestRoute> {
                   curve: Curves.ease,
                 );
               }),
-    );
-  }
-}
-
-class MyApp extends StatelessWidget {
-  // This widget is the root of your application.
-  @override
-  Widget build(BuildContext context) {
-    return MaterialApp(
-      scrollBehavior: MaterialScrollBehavior().copyWith(dragDevices: {
-        PointerDeviceKind.mouse,
-        PointerDeviceKind.touch,
-        PointerDeviceKind.stylus,
-        PointerDeviceKind.unknown
-      }),
-      title: 'Flutter Demo',
-      theme: ThemeData(
-        // This is the theme of your application.
-        //
-        // Try running your application with "flutter run". You'll see the
-        // application has a blue toolbar. Then, without quitting the app, try
-        // changing the primarySwatch below to Colors.green and then invoke
-        // "hot reload" (press "r" in the console where you ran "flutter run",
-        // or simply save your changes to "hot reload" in a Flutter IDE).
-        // Notice that the counter didn't reset back to zero; the application
-        // is not restarted.
-        primarySwatch: Colors.blue,
-      ),
-      home: ScrollStatus(),
     );
   }
 }

@@ -13,7 +13,8 @@ import 'package:image/image.dart' as img;
 
 import 'package:path/path.dart' as path;
 import 'package:pdfium_bindings/pdfium_bindings.dart';
-//import 'package:buffer_image/buffer_image.dart';
+import 'package:buffer_image/buffer_image.dart';
+import 'rgba_image.dart';
 
 enum _Codes { init, image, ack, pageInfo }
 
@@ -566,42 +567,30 @@ class PdfRender {
       throw PdfiumException(message: 'Page not load');
     }
     // var backgroundStr = "FFFFFFFF"; // as int 268435455
-    final w = ((width ?? getPageWidth()) * scale).round();
-    final h = ((height ?? getPageHeight()) * scale).round();
+    final w = (width ?? getPageWidth()) * scale;
+    final h = (height ?? getPageHeight()) * scale;
     print('w:${w},h:${h}');
     var start = DateTime.now();
     final bytes = renderPageAsBytes(
-      w,
-      h,
+      w.round(),
+      h.round(),
       backgroundColor: backgroundColor,
       rotate: rotate,
       flags: flags,
     );
-    var end = DateTime.now();
-    var costs = end.difference(start);
+    var costs = DateTime.now().difference(start);
     print("-----costs ${costs.toString()}");
 
-    end = DateTime.now();
-    costs = end.difference(start);
-    print("-----costs ${costs.toString()}");
+    var bmp = Rgba4444ToBmp(bytes, w.round(), h.round());
 
-    final img.Image image = img.Image.fromBytes(
-      width: w,
-      height: h,
-      bytes: bytes.buffer,
-      order: img.ChannelOrder.bgra,
-      numChannels: 4,
-    );
-
-    end = DateTime.now();
-    costs = end.difference(start);
+    costs = DateTime.now().difference(start);
     print("-----costs ${costs.toString()}");
     ////print(image.toString());
     return widget.Image.memory(
-      img.encodeBmp(image),
+      bmp,
+      width: double.infinity,
+      height: double.infinity,
       fit: widget.BoxFit.fill,
-      width: getPageWidth(),
-      height: getPageHeight(),
     );
   }
 
