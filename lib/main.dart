@@ -93,14 +93,14 @@ class Home extends StatelessWidget {
       appBar: null,
       body: Center(
         child: TextButton(
-          onPressed: () => _pressHomeBtn(context),
+          onPressed: () => _pressOpenBtn(context),
           child: Text('Open Pdf'),
         ),
       ),
     );
   }
 
-  _pressHomeBtn(BuildContext context) async {
+  _pressOpenBtn(BuildContext context) async {
     FilePickerResult? result = await FilePicker.platform
         .pickFiles(allowedExtensions: ['pdf'], type: FileType.custom);
     if (result != null) {
@@ -123,12 +123,16 @@ class ScrollControllerTestRoute extends StatefulWidget {
   }
 }
 
+typedef _CallBack = void Function(Notification notification);
+
 class ScrollControllerTestRouteState extends State<ScrollControllerTestRoute> {
-  ScrollController _controller = ScrollController();
+  ScrollController _controllerVertical = ScrollController();
+  ScrollController _controllerHorizontal = ScrollController();
   bool showToTopBtn = false; //是否显示“返回到顶部”按钮
   String barTitle = "Loading";
   double scale = 2;
   SimplePdfRender? _simplePdfRender;
+  _CallBack? mouseNotification;
   List<Size>? pageInfo;
   @override
   void initState() {
@@ -147,13 +151,13 @@ class ScrollControllerTestRouteState extends State<ScrollControllerTestRoute> {
     });
     // pdfRender.loadDocumentFromPath(widget.path!);
     //监听滚动事件，打印滚动位置
-    _controller.addListener(() {
+    _controllerVertical.addListener(() {
       //print(_controller.offset); //打印滚动位置
-      if (_controller.offset < 1000 && showToTopBtn) {
+      if (_controllerVertical.offset < 1000 && showToTopBtn) {
         setState(() {
           showToTopBtn = false;
         });
-      } else if (_controller.offset >= 1000 && showToTopBtn == false) {
+      } else if (_controllerVertical.offset >= 1000 && showToTopBtn == false) {
         setState(() {
           showToTopBtn = true;
         });
@@ -164,7 +168,8 @@ class ScrollControllerTestRouteState extends State<ScrollControllerTestRoute> {
   @override
   void dispose() {
     //为了避免内存泄露，需要调用_controller.dispose
-    _controller.dispose();
+    _controllerVertical.dispose();
+    _controllerHorizontal.dispose();
     super.dispose();
   }
 
@@ -172,62 +177,117 @@ class ScrollControllerTestRouteState extends State<ScrollControllerTestRoute> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: Text(barTitle)),
-      body: Scrollbar(
-          controller: _controller,
-          child: NotificationListener(
-            onNotification: (ScrollNotification notification) {
-              switch (notification.runtimeType) {
-                case ScrollStartNotification:
-                  //print('开始滚动');
-                  break;
-                case ScrollUpdateNotification:
-                  //print('正在滚动');
-                  break;
-                case ScrollEndNotification:
-                  //print('结束滚动');
-                  break;
-              }
-              return true;
-            },
-            child: _simplePdfRender == null //检查代理是否初始化
-                ? Center()
-                : ListView.builder(
-                    itemCount: pageInfo!.length,
-                    controller: _controller,
-                    itemBuilder: (context, index) {
-                      return Center(
-                          child: Container(
-                        alignment: Alignment.topCenter,
-                        width: pageInfo![index].width * scale,
-                        child: AspectRatio(
-                            aspectRatio: pageInfo![index].width /
-                                pageInfo![index].height,
-                            child: FittedBox(
-                              child: SizedBox(
-                                width: pageInfo![index].width * scale,
-                                height: pageInfo![index].height * scale,
-                                child: PdfPageStateful(
-                                  simplePdfRender: _simplePdfRender!,
-                                  index: index,
-                                  scale: 1,
-                                ),
-                              ),
-                            )),
-                      ));
-                    }),
-          )),
+      body: _simplePdfRender == null //检查代理是否初始化
+          ? null
+          : Stack(
+              children: [
+                Scrollbar(
+                  controller: _controllerHorizontal,
+                  thumbVisibility: true,
+                  child: SingleChildScrollView(
+                    controller: _controllerHorizontal,
+                    scrollDirection: Axis.horizontal,
+                    child: SizedBox(
+                      width: 2000,
+                      child: NotificationListener(
+                        onNotification: (Notification notification) {
+                          if (_callBack != null) {
+                            print("listener:${notification.toString()}");
+                            _callBack!(notification);
+                          }
+                          return false;
+                        },
+                        child: ScrollConfiguration(
+                          behavior: ScrollConfiguration.of(context)
+                              .copyWith(scrollbars: false),
+                          child: ListView.builder(
+                              itemCount: pageInfo!.length,
+                              controller: _controllerVertical,
+                              itemBuilder: (context, index) {
+                                return Center(
+                                    child: Container(
+                                  alignment: Alignment.topCenter,
+                                  width: pageInfo![index].width * scale,
+                                  child: AspectRatio(
+                                      aspectRatio: pageInfo![index].width /
+                                          pageInfo![index].height,
+                                      child: FittedBox(
+                                        child: SizedBox(
+                                          width: pageInfo![index].width * scale,
+                                          height:
+                                              pageInfo![index].height * scale,
+                                          child: PdfPageStateful(
+                                            simplePdfRender: _simplePdfRender!,
+                                            index: index,
+                                            scale: 1,
+                                          ),
+                                        ),
+                                      )),
+                                ));
+                              }),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+                Positioned(
+                  right: 0,
+                  width: 8,
+                  top: 0,
+                  bottom: 0,
+                  child: Scrollbar(
+                    thumbVisibility: true,
+                    controller: _controllerVertical,
+                    child: NotificationSender(
+                      child: Center(),
+                    ),
+                  ),
+                ),
+              ],
+            ),
       floatingActionButton: !showToTopBtn
           ? null
           : FloatingActionButton(
               child: Icon(Icons.arrow_upward),
               onPressed: () {
                 //返回到顶部时执行动画
-                _controller.animateTo(
+                _controllerVertical.animateTo(
                   .0,
                   duration: Duration(milliseconds: 200),
                   curve: Curves.ease,
                 );
               }),
     );
+  }
+}
+
+_CallBack? _callBack;
+
+class NotificationSender extends StatefulWidget {
+  Widget child;
+  NotificationSender({
+    required this.child,
+  });
+  @override
+  State<StatefulWidget> createState() {
+    // TODO: implement createState
+    return NotificationSenderState();
+  }
+}
+
+class NotificationSenderState extends State<NotificationSender> {
+  NotificationSenderState();
+  @override
+  void initState() {
+    _callBack = (notification) {
+      notification.dispatch(context);
+      print("=====");
+    };
+    super.initState();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return widget.child;
   }
 }
