@@ -12,7 +12,6 @@ import 'package:image/image.dart' as img;
 
 import 'package:path/path.dart' as path;
 import 'package:pdfium_bindings/pdfium_bindings.dart';
-import 'package:buffer_image/buffer_image.dart';
 import 'rgba_image.dart';
 
 enum _Codes { init, image, ack, pageInfo }
@@ -88,7 +87,7 @@ class SimplePdfRender {
 
   Stream<List<ui.Size>> getPageInfo() {
     _resultPageInfo = StreamController<List<ui.Size>>();
-    _sendPort.send(_Command(_Codes.pageInfo));
+    _sendPort.send(const _Command(_Codes.pageInfo));
     return _resultPageInfo.stream;
   }
 }
@@ -115,7 +114,7 @@ class _SimplePdfRenderServer {
         _path = command.arg0 as String;
         RootIsolateToken rootIsolateToken = command.arg1 as RootIsolateToken;
         BackgroundIsolateBinaryMessenger.ensureInitialized(rootIsolateToken);
-        _pdfRender = await PdfRender();
+        _pdfRender = PdfRender();
         _pdfRender.loadDocumentFromPath(_path);
         _sendPort.send(const _Command(_Codes.ack));
         break;
@@ -126,7 +125,7 @@ class _SimplePdfRenderServer {
         var image = _pdfRender.RenderPageAsImage(page, scale: scale);
         var end = DateTime.now();
         var costs = end.difference(start);
-        print("send image ${page},costs ${costs.toString()}");
+        print("send image $page,costs ${costs.toString()}");
         _sendPort.send(_Command(_Codes.image, arg0: image));
       case _Codes.pageInfo:
         var pageInfo = _pdfRender.getPageInfo();
@@ -149,10 +148,10 @@ class PdfRender {
   Pointer<Uint8>? buffer;
   Pointer<fpdf_bitmap_t__>? bitmap;
 
-  Map<int, Pointer<fpdf_page_t__>?> _pageCache = {};
-  Map<Pointer<fpdf_page_t__>, double> _pageWidthCache = {};
-  Map<Pointer<fpdf_page_t__>, double> _pageHeightCache = {};
-  Map<Pointer<fpdf_page_t__>, Int8List> _pagePngCache = {};
+  final Map<int, Pointer<fpdf_page_t__>?> _pageCache = {};
+  final Map<Pointer<fpdf_page_t__>, double> _pageWidthCache = {};
+  final Map<Pointer<fpdf_page_t__>, double> _pageHeightCache = {};
+  final Map<Pointer<fpdf_page_t__>, Int8List> _pagePngCache = {};
 
   /// Default constructor to use the class
   PdfRender({String? libraryPath, this.allocator = calloc}) {
@@ -520,8 +519,8 @@ class PdfRender {
     int pngLevel = 6,
   }) {
     //print('png render');
-    final __page = getPage(page);
-    if (__page == nullptr) {
+    final page0 = getPage(page);
+    if (page0 == nullptr) {
       throw PdfiumException(message: 'Page not load');
     }
     // var backgroundStr = "FFFFFFFF"; // as int 268435455
@@ -566,7 +565,7 @@ class PdfRender {
     // var backgroundStr = "FFFFFFFF"; // as int 268435455
     final w = (width ?? getPageWidth()) * scale;
     final h = (height ?? getPageHeight()) * scale;
-    print('w:${w},h:${h}');
+    print('w:$w,h:$h');
     var start = DateTime.now();
     final bytes = renderPageAsBytes(
       w.round(),
@@ -619,7 +618,7 @@ class PdfRender {
     // var backgroundStr = "FFFFFFFF"; // as int 268435455
     final w = ((width ?? getPageWidth()) * scale).round();
     final h = ((height ?? getPageHeight()) * scale).round();
-    print('w:${w},h:${h}');
+    print('w:$w,h:$h');
     final bytes = renderPageAsBytes(
       w,
       h,

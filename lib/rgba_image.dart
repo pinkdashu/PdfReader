@@ -1,7 +1,5 @@
 import 'dart:typed_data';
 
-import 'package:flutter/material.dart';
-
 Uint8List Rgba4444ToBmp(Uint8List Rgba, int width, int height) {
   var header = BMP332Header(width, height);
   var bmp = header.appendBitmap(Rgba);
@@ -20,7 +18,7 @@ class BMP332Header {
     int baseHeaderSize = 54;
     _totalHeaderSize = baseHeaderSize; // base + color map, color map = 0
     int fileLength = _totalHeaderSize + _width * _height * 4; // header + bitmap
-    _bmp = new Uint8List(fileLength);
+    _bmp = Uint8List(fileLength);
     ByteData bd = _bmp.buffer.asByteData();
     bd.setUint8(0, 0x42);
     bd.setUint8(1, 0x4d);
@@ -33,23 +31,6 @@ class BMP332Header {
     bd.setUint32(28, 32, Endian.little); // bpp
     bd.setUint32(30, 0, Endian.little); // compression
     bd.setUint32(34, _width * _height, Endian.little); // bitmap size
-    // leave everything else as zero
-
-    // there are 256 possible variations of pixel
-    // build the indexed color map that maps from packed byte to RGBA32
-    // better still, create a lookup table see: http://unwind.se/bgr233/
-    // for (int rgb = 0; rgb < 256; rgb++) {
-    //   int offset = baseHeaderSize + rgb * 4;
-
-    //   int red = rgb & 0x3;
-    //   int green = rgb << 2 & 0x3;
-    //   int blue = rgb << 4 & 0x3;
-
-    //   bd.setUint8(offset + 3, 255); // A
-    //   bd.setUint8(offset + 2, red); // R
-    //   bd.setUint8(offset + 1, green); // G
-    //   bd.setUint8(offset, blue); // B
-    // }
   }
 
   /// Insert the provided bitmap after the header and return the whole BMP

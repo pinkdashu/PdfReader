@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:ui';
 
 import 'package:flutter/material.dart';
 import 'package:file_picker/file_picker.dart';
@@ -28,7 +27,7 @@ class PdfPageStatefulState extends State<PdfPageStateful> {
     _image =
         await widget.simplePdfRender.getImage(widget.index, widget.scale).first;
     print(_image.toString());
-    if (this.mounted) {
+    if (mounted) {
       setState(() {
         print(_image.toString());
         _isLoading = false;
@@ -50,7 +49,7 @@ class PdfPageStatefulState extends State<PdfPageStateful> {
   void deactivate() async {
     // TODO: implement deactivate
     print('page deactive');
-    final cancel = await CancelableOperation.fromFuture(FetchPdf(),
+    final cancel = CancelableOperation.fromFuture(FetchPdf(),
         onCancel: () => 'Future has been canceled');
     cancel.cancel();
     if (cancel.isCanceled) {
@@ -70,7 +69,7 @@ class PdfPageStatefulState extends State<PdfPageStateful> {
   Widget build(BuildContext context) {
     print('BUILD');
     return Center(
-      child: _isLoading ? CircularProgressIndicator() : _image!,
+      child: _isLoading ? const CircularProgressIndicator() : _image!,
     );
   }
 }
@@ -80,7 +79,7 @@ void main(List<String> args) async {
     debugShowCheckedModeBanner: false,
     title: 'PdfReader',
     theme: ThemeData(primarySwatch: Colors.blue),
-    home: Home(),
+    home: const Home(),
   ));
 }
 
@@ -94,7 +93,7 @@ class Home extends StatelessWidget {
       body: Center(
         child: TextButton(
           onPressed: () => _pressOpenBtn(context),
-          child: Text('Open Pdf'),
+          child: const Text('Open Pdf'),
         ),
       ),
     );
@@ -126,8 +125,8 @@ class ScrollControllerTestRoute extends StatefulWidget {
 typedef _CallBack = void Function(Notification notification);
 
 class ScrollControllerTestRouteState extends State<ScrollControllerTestRoute> {
-  ScrollController _controllerVertical = ScrollController();
-  ScrollController _controllerHorizontal = ScrollController();
+  final ScrollController _controllerVertical = ScrollController();
+  final ScrollController _controllerHorizontal = ScrollController();
   bool showToTopBtn = false; //是否显示“返回到顶部”按钮
   String barTitle = "Loading";
   double scale = 2;
@@ -239,7 +238,7 @@ class ScrollControllerTestRouteState extends State<ScrollControllerTestRoute> {
                     thumbVisibility: true,
                     controller: _controllerVertical,
                     child: NotificationSender(
-                      child: Center(),
+                      child: const Center(),
                     ),
                   ),
                 ),
@@ -248,12 +247,12 @@ class ScrollControllerTestRouteState extends State<ScrollControllerTestRoute> {
       floatingActionButton: !showToTopBtn
           ? null
           : FloatingActionButton(
-              child: Icon(Icons.arrow_upward),
+              child: const Icon(Icons.arrow_upward),
               onPressed: () {
                 //返回到顶部时执行动画
                 _controllerVertical.animateTo(
                   .0,
-                  duration: Duration(milliseconds: 200),
+                  duration: const Duration(milliseconds: 200),
                   curve: Curves.ease,
                 );
               }),
@@ -265,7 +264,7 @@ _CallBack? _callBack;
 
 class NotificationSender extends StatefulWidget {
   Widget child;
-  NotificationSender({
+  NotificationSender({super.key, 
     required this.child,
   });
   @override
