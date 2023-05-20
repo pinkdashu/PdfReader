@@ -5,6 +5,7 @@ import 'dart:io';
 import 'dart:isolate';
 import 'dart:typed_data';
 import 'dart:ui' as ui;
+import 'package:flutter/material.dart';
 import 'package:flutter/widgets.dart' as widget;
 import 'package:ffi/ffi.dart';
 import 'package:flutter/services.dart';
@@ -14,7 +15,7 @@ import 'package:path/path.dart' as path;
 import 'package:pdfium_bindings/pdfium_bindings.dart';
 import 'rgba_image.dart';
 
-enum _Codes { init, image, ack, pageInfo }
+enum _Codes { init, image, ack, pageInfo, imagePtr }
 
 class _Command {
   const _Command(this.code, {this.arg0, this.arg1});
@@ -34,6 +35,8 @@ class SimplePdfRender {
 
   final Queue<StreamController<widget.Image>> _resultStream =
       Queue<StreamController<widget.Image>>();
+  final Queue<StreamController<Map>> _resultStreamPtr =
+      Queue<StreamController<Map>>();
   late StreamController<List<ui.Size>> _resultPageInfo;
 
   static Future<SimplePdfRender> open(String path) async {
@@ -67,11 +70,17 @@ class SimplePdfRender {
         _resultStream.last.add(command.arg0 as widget.Image);
         _resultStream.removeLast().close();
         break;
+      case _Codes.imagePtr:
+        print("queue length:${_resultStreamPtr.length}");
+        _resultStreamPtr.last.add(command.arg0 as Map);
+        _resultStreamPtr.removeLast().close();
+        break;
       case _Codes.pageInfo:
         _resultPageInfo
           ..add(command.arg0 as List<ui.Size>)
           ..close();
         break;
+
       default:
     }
   }
@@ -83,6 +92,28 @@ class SimplePdfRender {
     _resultStream.addFirst(resultStream);
     _sendPort.send(_Command(_Codes.image, arg0: page, arg1: scale));
     return resultStream.stream;
+  }
+
+  Stream<Map> getImagePtr(int page, double scale) {
+    print("start get Ptr");
+    StreamController<Map> resultStreamPtr = StreamController<Map>();
+    _resultStreamPtr.addFirst(resultStreamPtr);
+    _sendPort.send(_Command(_Codes.imagePtr, arg0: page, arg1: scale));
+    return resultStreamPtr.stream;
+  }
+
+  Future<widget.Image> getImagebyPtr(int page, double scale) async {
+    var addr = await getImagePtr(page, scale).first;
+    var imagePtr = Pointer<Uint8>.fromAddress(addr['address']);
+    var image = imagePtr.asTypedList(addr['width'] * addr['height'] * 4);
+    var bmp = Rgba4444ToBmp(image, addr['width'] as int, addr['height'] as int);
+    return Image.memory(
+      bmp, width: double.infinity,
+      height: double.infinity,
+      gaplessPlayback:
+          true, // prevent image flash while changing https://stackoverflow.com/questions/60125831/white-flash-when-image-is-repainted-flutter
+      fit: widget.BoxFit.fill,
+    );
   }
 
   Stream<List<ui.Size>> getPageInfo() {
@@ -127,6 +158,17 @@ class _SimplePdfRenderServer {
         var costs = end.difference(start);
         print("send image $page,costs ${costs.toString()}");
         _sendPort.send(_Command(_Codes.image, arg0: image));
+
+      case _Codes.imagePtr:
+        var page = command.arg0 as int;
+        var scale = command.arg1 as double;
+        var start = DateTime.now();
+        Map image = _pdfRender.RenderPageAsPtr(page, scale: scale);
+        var end = DateTime.now();
+        var costs = end.difference(start);
+        print("send image $page,costs ${costs.toString()}");
+        _sendPort.send(_Command(_Codes.imagePtr, arg0: image));
+
       case _Codes.pageInfo:
         var pageInfo = _pdfRender.getPageInfo();
         _sendPort.send(_Command(_Codes.pageInfo, arg0: pageInfo));
@@ -594,6 +636,8 @@ class PdfRender {
       bmp,
       width: double.infinity,
       height: double.infinity,
+      gaplessPlayback:
+          true, // prevent image flash while changing https://stackoverflow.com/questions/60125831/white-flash-when-image-is-repainted-flutter
       fit: widget.BoxFit.fill,
     );
   }
@@ -607,7 +651,7 @@ class PdfRender {
     allocator.free(config);
   }
 
-  widget.Image RenderPageAsPtr(
+  Map RenderPageAsPtr(
     int page, {
     int? width,
     int? height,
@@ -618,36 +662,42 @@ class PdfRender {
     bool flush = false,
     int pngLevel = 6,
   }) {
-    //print('png render');
-    _page = getPage(page);
     if (_page == nullptr) {
       throw PdfiumException(message: 'Page not load');
     }
-    // var backgroundStr = "FFFFFFFF"; // as int 268435455
+    // var backgroundStr = "FFFFFFFF"; // as int
+    _page = getPage(page);
     final w = ((width ?? getPageWidth()) * scale).round();
-    final h = ((height ?? getPageHeight()) * scale).round();
-    print('w:$w,h:$h');
-    final bytes = renderPageAsBytes(
-      w,
-      h,
-      backgroundColor: backgroundColor,
-      rotate: rotate,
-      flags: flags,
-    );
+    final h = ((width ?? getPageWidth()) * scale).round();
+    const startX = 0;
+    final sizeX = w;
+    const startY = 0;
+    final sizeY = h;
 
-    final img.Image image = img.Image.fromBytes(
-      width: w,
-      height: h,
-      bytes: bytes.buffer,
-      order: img.ChannelOrder.bgra,
-      numChannels: 4,
+    // Create empty bitmap and render page onto it
+    // The bitmap always uses 4 bytes per pixel. The first byte is always
+    // double word aligned.
+    // The byte order is BGRx (the last byte unused if no alpha channel) or
+    // BGRA. flags FPDF_ANNOT | FPDF_LCD_TEXT
+
+    bitmap = pdfium.FPDFBitmap_Create(w, h, 0);
+    pdfium.FPDFBitmap_FillRect(bitmap!, 0, 0, w, h, backgroundColor);
+    pdfium.FPDF_RenderPageBitmap(
+      bitmap!,
+      _page!,
+      startX,
+      startY,
+      sizeX,
+      sizeY,
+      rotate,
+      flags,
     );
-    ////print(image.toString());
-    return widget.Image.memory(
-      img.encodeBmp(image),
-      fit: widget.BoxFit.fill,
-      width: getPageWidth(),
-      height: getPageHeight(),
-    );
+    //  The pointer to the first byte of the bitmap buffer The data is in BGRA format
+    buffer = pdfium.FPDFBitmap_GetBuffer(bitmap!);
+    Map pagePtr = {};
+    pagePtr['address'] = buffer!.address;
+    pagePtr['width'] = w;
+    pagePtr['height'] = h;
+    return pagePtr;
   }
 }

@@ -1,10 +1,14 @@
 import 'dart:async';
-
+import 'dart:ui' as ui;
+import 'package:buffer_image/buffer_image.dart';
 import 'package:flutter/material.dart';
 import 'package:file_picker/file_picker.dart';
+import 'package:pdfium_bindings/pdfium_bindings.dart';
 import 'pdf_render.dart';
 import 'package:async/async.dart';
 import "dart:io";
+import 'dart:ffi';
+import 'rgba_image.dart';
 
 class PdfPageStateful extends StatefulWidget {
   late SimplePdfRender simplePdfRender;
@@ -21,19 +25,27 @@ class PdfPageStateful extends StatefulWidget {
 }
 
 class PdfPageStatefulState extends State<PdfPageStateful> {
-  bool _isLoading = true;
   Image? _image;
+  Image? _cacheImage;
   Future<void> FetchPdf() async {
     print("start fetch");
+    //_image =
+    //    await widget.simplePdfRender.getImage(widget.index, widget.scale).first;
     _image =
-        await widget.simplePdfRender.getImage(widget.index, widget.scale).first;
+        await widget.simplePdfRender.getImagebyPtr(widget.index, widget.scale);
     print(_image.toString());
     if (mounted) {
       setState(() {
+        _cacheImage = _image;
         print(_image.toString());
-        _isLoading = false;
       });
     }
+  }
+
+  @override
+  void didUpdateWidget(oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    FetchPdf();
   }
 
   @override
@@ -70,7 +82,9 @@ class PdfPageStatefulState extends State<PdfPageStateful> {
   Widget build(BuildContext context) {
     print('BUILD');
     return Center(
-      child: _isLoading ? const CircularProgressIndicator() : _image!,
+      child: _cacheImage == null
+          ? const CircularProgressIndicator()
+          : _cacheImage!,
     );
   }
 }
@@ -130,10 +144,11 @@ class ScrollControllerTestRouteState extends State<ScrollControllerTestRoute> {
   final ScrollController _controllerHorizontal = ScrollController();
   bool showToTopBtn = false; //是否显示“返回到顶部”按钮
   String barTitle = "Loading";
-  double scale = 1;
+  double scale = 1, basicScale = 1;
+
   SimplePdfRender? _simplePdfRender;
   _CallBack? mouseNotification;
-  List<Size>? pageInfo;
+  List<ui.Size>? pageInfo;
   @override
   void initState() {
     super.initState();
@@ -149,7 +164,7 @@ class ScrollControllerTestRouteState extends State<ScrollControllerTestRoute> {
               pageInfo = value;
               if (pageInfo != null) {
                 // make rendered page width the same as widget width
-                scale =
+                basicScale =
                     MediaQuery.of(context).size.width / pageInfo!.last.width;
               }
             })
@@ -182,7 +197,27 @@ class ScrollControllerTestRouteState extends State<ScrollControllerTestRoute> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: Text(barTitle)),
+      appBar: AppBar(
+        title: Text(barTitle),
+        actions: [
+          IconButton(
+              onPressed: () {
+                setState(() {
+                  scale = scale + 0.2;
+                });
+              },
+              icon: Icon(Icons.add)),
+          IconButton(
+              onPressed: () {
+                setState(() {
+                  if (scale - 0.2 > 0) {
+                    scale = scale - 0.2;
+                  }
+                });
+              },
+              icon: Icon(Icons.remove))
+        ],
+      ),
       body: _simplePdfRender == null //检查代理是否初始化
           ? null
           : Stack(
@@ -196,12 +231,13 @@ class ScrollControllerTestRouteState extends State<ScrollControllerTestRoute> {
                       scrollDirection: Axis.horizontal,
                       child: Center(
                         child: SizedBox(
-                          width:
-                              pageInfo!.last.width * scale, //last is max size
+                          width: pageInfo!.last.width *
+                              basicScale *
+                              scale, //last is max size
                           child: NotificationListener(
                             onNotification: (Notification notification) {
                               if (_callBack != null) {
-                                print("listener:${notification.toString()}");
+                                //print("listener:${notification.toString()}");
                                 _callBack!(notification);
                               }
                               return false;
@@ -217,21 +253,25 @@ class ScrollControllerTestRouteState extends State<ScrollControllerTestRoute> {
                                     return Center(
                                         child: Container(
                                       alignment: Alignment.topCenter,
-                                      width: pageInfo![index].width * scale,
+                                      width: pageInfo![index].width *
+                                          basicScale *
+                                          scale,
                                       child: AspectRatio(
                                           aspectRatio: pageInfo![index].width /
                                               pageInfo![index].height,
                                           child: FittedBox(
                                             child: SizedBox(
                                               width: pageInfo![index].width *
+                                                  basicScale *
                                                   scale,
                                               height: pageInfo![index].height *
+                                                  basicScale *
                                                   scale,
                                               child: PdfPageStateful(
                                                 simplePdfRender:
                                                     _simplePdfRender!,
                                                 index: index,
-                                                scale: scale,
+                                                scale: basicScale * scale,
                                               ),
                                             ),
                                           )),

@@ -36,6 +36,8 @@ class BMP332Header {
   /// Insert the provided bitmap after the header and return the whole BMP
   Uint8List appendBitmap(Uint8List bitmap) {
     int size = _width * _height * 4;
+    print(size.toString());
+    print(bitmap.length.toString());
     assert(bitmap.length == size);
     _bmp.setRange(_totalHeaderSize, _totalHeaderSize + size, bitmap);
     return _bmp;
