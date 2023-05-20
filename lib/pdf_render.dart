@@ -135,7 +135,8 @@ class _SimplePdfRenderServer {
     final _SimplePdfRenderServer server = _SimplePdfRenderServer._(sendPort);
     receivePort.listen((Object? message) {
       final _Command command = message as _Command;
-      server._handleCommand(command);
+      print("listened");
+      server._handleCommand(command).timeout(Duration.zero);
     });
   }
 

@@ -143,8 +143,10 @@ class ScrollControllerTestRouteState extends State<ScrollControllerTestRoute> {
   final ScrollController _controllerVertical = ScrollController();
   final ScrollController _controllerHorizontal = ScrollController();
   bool showToTopBtn = false; //是否显示“返回到顶部”按钮
-  String barTitle = "Loading";
-  double scale = 1, basicScale = 1;
+  late String barTitle;
+  double basicScale = 1.0; //基础放大比例(maxWidth = Screem Width)
+  ValueNotifier<double> scale = ValueNotifier(1.0)
+    ..addListener(() {}); // 页面放大比例 120%, 200% 之类的
 
   SimplePdfRender? _simplePdfRender;
   _CallBack? mouseNotification;
@@ -152,6 +154,7 @@ class ScrollControllerTestRouteState extends State<ScrollControllerTestRoute> {
   @override
   void initState() {
     super.initState();
+    barTitle = widget.path!.split('\\').last.split('.').first; // get pdf name
     if (widget.path == null) {
       throw Exception('Can not get path');
     }
@@ -198,24 +201,34 @@ class ScrollControllerTestRouteState extends State<ScrollControllerTestRoute> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
+        centerTitle: true,
         title: Text(barTitle),
         actions: [
           IconButton(
               onPressed: () {
                 setState(() {
-                  scale = scale + 0.2;
+                  scale.value = scale.value + 0.2;
                 });
               },
               icon: Icon(Icons.add)),
           IconButton(
               onPressed: () {
                 setState(() {
-                  if (scale - 0.2 > 0) {
-                    scale = scale - 0.2;
+                  if (scale.value - 0.2 > 0.2) {
+                    scale.value = scale.value - 0.2;
                   }
                 });
               },
-              icon: Icon(Icons.remove))
+              icon: Icon(Icons.remove)),
+          IconButton(
+              onPressed: () {
+                setState(() {
+                  scale.value = 1.0;
+                  basicScale = basicScale =
+                      MediaQuery.of(context).size.width / pageInfo!.last.width;
+                });
+              },
+              icon: Icon(Icons.fit_screen))
         ],
       ),
       body: _simplePdfRender == null //检查代理是否初始化
@@ -233,7 +246,7 @@ class ScrollControllerTestRouteState extends State<ScrollControllerTestRoute> {
                         child: SizedBox(
                           width: pageInfo!.last.width *
                               basicScale *
-                              scale, //last is max size
+                              scale.value, //last is max size
                           child: NotificationListener(
                             onNotification: (Notification notification) {
                               if (_callBack != null) {
@@ -255,7 +268,7 @@ class ScrollControllerTestRouteState extends State<ScrollControllerTestRoute> {
                                       alignment: Alignment.topCenter,
                                       width: pageInfo![index].width *
                                           basicScale *
-                                          scale,
+                                          scale.value,
                                       child: AspectRatio(
                                           aspectRatio: pageInfo![index].width /
                                               pageInfo![index].height,
@@ -263,15 +276,15 @@ class ScrollControllerTestRouteState extends State<ScrollControllerTestRoute> {
                                             child: SizedBox(
                                               width: pageInfo![index].width *
                                                   basicScale *
-                                                  scale,
+                                                  scale.value,
                                               height: pageInfo![index].height *
                                                   basicScale *
-                                                  scale,
+                                                  scale.value,
                                               child: PdfPageStateful(
                                                 simplePdfRender:
                                                     _simplePdfRender!,
                                                 index: index,
-                                                scale: basicScale * scale,
+                                                scale: basicScale * scale.value,
                                               ),
                                             ),
                                           )),
