@@ -9,6 +9,7 @@ import 'package:async/async.dart';
 import "dart:io";
 import 'dart:ffi';
 import 'rgba_image.dart';
+import 'package:fluttertoast/fluttertoast.dart';
 
 class PdfPageStateful extends StatefulWidget {
   late SimplePdfRender simplePdfRender;
@@ -93,7 +94,7 @@ void main(List<String> args) async {
   runApp(MaterialApp(
     debugShowCheckedModeBanner: false,
     title: 'PdfReader',
-    theme: ThemeData(primarySwatch: Colors.blue),
+    theme: ThemeData(primarySwatch: Colors.blue, useMaterial3: true),
     home: const Home(),
   ));
 }
@@ -145,20 +146,27 @@ class ScrollControllerTestRouteState extends State<ScrollControllerTestRoute> {
   bool showToTopBtn = false; //是否显示“返回到顶部”按钮
   late String barTitle;
   double basicScale = 1.0; //基础放大比例(maxWidth = Screem Width)
-  ValueNotifier<double> scale = ValueNotifier(1.0)
-    ..addListener(() {}); // 页面放大比例 120%, 200% 之类的
+  ValueNotifier<double> scale = ValueNotifier(1.0); // 页面放大比例 120%, 200% 之类的
 
   SimplePdfRender? _simplePdfRender;
   _CallBack? mouseNotification;
   List<ui.Size>? pageInfo;
+
+  late FToast fToast;
   @override
   void initState() {
+    // must contain
     super.initState();
+    // initialize toast component
+    fToast = FToast();
+    fToast.init(context);
+    scale.addListener(() => _showToast());
+    // get pdf name
     barTitle = widget.path!.split('\\').last.split('.').first; // get pdf name
+    // initialize pdf render component
     if (widget.path == null) {
       throw Exception('Can not get path');
     }
-
     SimplePdfRender.open(widget.path!).then((value) {
       _simplePdfRender = value;
       _simplePdfRender!.getPageInfo().first.then((value) => {
@@ -173,7 +181,7 @@ class ScrollControllerTestRouteState extends State<ScrollControllerTestRoute> {
             })
           });
     });
-    // pdfRender.loadDocumentFromPath(widget.path!);
+
     //监听滚动事件，打印滚动位置
     _controllerVertical.addListener(() {
       //print(_controller.offset); //打印滚动位置
@@ -195,6 +203,36 @@ class ScrollControllerTestRouteState extends State<ScrollControllerTestRoute> {
     _controllerVertical.dispose();
     _controllerHorizontal.dispose();
     super.dispose();
+  }
+
+  void _showToast() {
+    Widget toast = Container(
+      padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 12.0),
+      decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(25.0), color: Colors.black54),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(
+            Icons.aspect_ratio,
+            color: Colors.white,
+          ),
+          SizedBox(
+            width: 24.0,
+          ),
+          Text(
+            "${(scale.value * 100).toStringAsFixed(0)} %",
+            style: TextStyle(color: Colors.white),
+          ),
+        ],
+      ),
+    );
+    fToast.removeQueuedCustomToasts();
+    fToast.showToast(
+        child: toast,
+        gravity: ToastGravity.CENTER,
+        toastDuration: Duration(seconds: 1),
+        fadeDuration: Duration(milliseconds: 200));
   }
 
   @override
@@ -228,7 +266,24 @@ class ScrollControllerTestRouteState extends State<ScrollControllerTestRoute> {
                       MediaQuery.of(context).size.width / pageInfo!.last.width;
                 });
               },
-              icon: Icon(Icons.fit_screen))
+              icon: Icon(Icons.fit_screen)),
+          PopupMenuButton(
+              icon: Icon(Icons.search),
+              itemBuilder: (context) => [
+                    PopupMenuItem(
+                        child: TextFormField(
+                      decoration: InputDecoration(
+                          hintText: "键入一个字词或页码", icon: Icon(Icons.search)),
+                    ))
+                  ]),
+          PopupMenuButton(
+              itemBuilder: (context) => [
+                    PopupMenuItem(
+                        child: IconButton(
+                      onPressed: () => {},
+                      icon: Icon(Icons.abc),
+                    ))
+                  ]),
         ],
       ),
       body: _simplePdfRender == null //检查代理是否初始化

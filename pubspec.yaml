@@ -40,6 +40,7 @@ dependencies:
   buffer_image: ^0.3.12
   pdfium_bindings: ^2.0.1
   async: ^2.11.0
+  fluttertoast: ^8.2.1
 
 dev_dependencies:
   flutter_test:
