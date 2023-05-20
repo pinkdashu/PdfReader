@@ -211,10 +211,11 @@ packages:
   pdfium_bindings:
     dependency: "direct main"
     description:
-      name: pdfium_bindings
-      sha256: "7db068018e2c85ed74a7acc6f68fbc8ee10e90e7e114438558df670e27782222"
-      url: "https://mirror.sjtu.edu.cn/dart-pub/"
-    source: hosted
+      path: "."
+      ref: HEAD
+      resolved-ref: d3c6fdef8bb112f8592483decd795ab41655966f
+      url: "https://github.com/pinkdashu/pdfium_bindings.git"
+    source: git
     version: "2.0.1"
   petitparser:
     dependency: transitive

@@ -107,9 +107,10 @@ class Home extends StatelessWidget {
     return Scaffold(
       appBar: null,
       body: Center(
-        child: TextButton(
+        child: FloatingActionButton.extended(
           onPressed: () => _pressOpenBtn(context),
-          child: const Text('Open Pdf'),
+          icon: Icon(Icons.add),
+          label: const Text('打开PDF文件'),
         ),
       ),
     );
@@ -250,13 +251,15 @@ class ScrollControllerTestRouteState extends State<ScrollControllerTestRoute> {
               },
               icon: Icon(Icons.add)),
           IconButton(
-              onPressed: () {
-                setState(() {
-                  if (scale.value - 0.2 > 0.2) {
-                    scale.value = scale.value - 0.2;
-                  }
-                });
-              },
+              onPressed: scale.value <= 0.21
+                  ? null
+                  : () {
+                      setState(() {
+                        if (scale.value - 0.2 > 0.2) {
+                          scale.value = scale.value - 0.2;
+                        }
+                      });
+                    },
               icon: Icon(Icons.remove)),
           IconButton(
               onPressed: () {
@@ -269,6 +272,7 @@ class ScrollControllerTestRouteState extends State<ScrollControllerTestRoute> {
               icon: Icon(Icons.fit_screen)),
           PopupMenuButton(
               icon: Icon(Icons.search),
+              enabled: false,
               itemBuilder: (context) => [
                     PopupMenuItem(
                         child: TextFormField(

@@ -15,7 +15,7 @@ import 'package:path/path.dart' as path;
 import 'package:pdfium_bindings/pdfium_bindings.dart';
 import 'rgba_image.dart';
 
-enum _Codes { init, image, ack, pageInfo, imagePtr }
+enum _Codes { init, image, ack, pageInfo, imagePtr, pageText }
 
 class _Command {
   const _Command(this.code, {this.arg0, this.arg1});
