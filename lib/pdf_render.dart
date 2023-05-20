@@ -268,11 +268,19 @@ class PdfRender {
     int count = getPageCount();
     List<ui.Size> pageInfo = [];
     var start = DateTime.now();
+    double maxWidth = 0, maxHeight = 0;
 
     for (var i = 0; i < count; i++) {
       pdfium.FPDF_GetPageSizeByIndexF(_document!, i, size);
+      if (maxWidth < size[0].width) {
+        maxWidth = size[0].width;
+      }
+      if (maxHeight < size[0].height) {
+        maxHeight = size[0].height;
+      }
       pageInfo.add(ui.Size(size[0].width, size[0].height));
     }
+    pageInfo.add(ui.Size(maxWidth, maxHeight));
     print("get page costs ${DateTime.now().difference(start)}");
     return pageInfo;
   }

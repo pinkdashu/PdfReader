@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:file_picker/file_picker.dart';
 import 'pdf_render.dart';
 import 'package:async/async.dart';
+import "dart:io";
 
 class PdfPageStateful extends StatefulWidget {
   late SimplePdfRender simplePdfRender;
@@ -129,7 +130,7 @@ class ScrollControllerTestRouteState extends State<ScrollControllerTestRoute> {
   final ScrollController _controllerHorizontal = ScrollController();
   bool showToTopBtn = false; //是否显示“返回到顶部”按钮
   String barTitle = "Loading";
-  double scale = 2;
+  double scale = 1;
   SimplePdfRender? _simplePdfRender;
   _CallBack? mouseNotification;
   List<Size>? pageInfo;
@@ -143,9 +144,15 @@ class ScrollControllerTestRouteState extends State<ScrollControllerTestRoute> {
     SimplePdfRender.open(widget.path!).then((value) {
       _simplePdfRender = value;
       _simplePdfRender!.getPageInfo().first.then((value) => {
-            setState(
-              () => pageInfo = value,
-            )
+            setState(() {
+              // get all pages size and max size
+              pageInfo = value;
+              if (pageInfo != null) {
+                // make rendered page width the same as widget width
+                scale =
+                    MediaQuery.of(context).size.width / pageInfo!.last.width;
+              }
+            })
           });
     });
     // pdfRender.loadDocumentFromPath(widget.path!);
@@ -183,47 +190,55 @@ class ScrollControllerTestRouteState extends State<ScrollControllerTestRoute> {
                 Scrollbar(
                   controller: _controllerHorizontal,
                   thumbVisibility: true,
-                  child: SingleChildScrollView(
-                    controller: _controllerHorizontal,
-                    scrollDirection: Axis.horizontal,
-                    child: SizedBox(
-                      width: 2000,
-                      child: NotificationListener(
-                        onNotification: (Notification notification) {
-                          if (_callBack != null) {
-                            print("listener:${notification.toString()}");
-                            _callBack!(notification);
-                          }
-                          return false;
-                        },
-                        child: ScrollConfiguration(
-                          behavior: ScrollConfiguration.of(context)
-                              .copyWith(scrollbars: false),
-                          child: ListView.builder(
-                              itemCount: pageInfo!.length,
-                              controller: _controllerVertical,
-                              itemBuilder: (context, index) {
-                                return Center(
-                                    child: Container(
-                                  alignment: Alignment.topCenter,
-                                  width: pageInfo![index].width * scale,
-                                  child: AspectRatio(
-                                      aspectRatio: pageInfo![index].width /
-                                          pageInfo![index].height,
-                                      child: FittedBox(
-                                        child: SizedBox(
-                                          width: pageInfo![index].width * scale,
-                                          height:
-                                              pageInfo![index].height * scale,
-                                          child: PdfPageStateful(
-                                            simplePdfRender: _simplePdfRender!,
-                                            index: index,
-                                            scale: 1,
-                                          ),
-                                        ),
-                                      )),
-                                ));
-                              }),
+                  child: Center(
+                    child: SingleChildScrollView(
+                      controller: _controllerHorizontal,
+                      scrollDirection: Axis.horizontal,
+                      child: Center(
+                        child: SizedBox(
+                          width:
+                              pageInfo!.last.width * scale, //last is max size
+                          child: NotificationListener(
+                            onNotification: (Notification notification) {
+                              if (_callBack != null) {
+                                print("listener:${notification.toString()}");
+                                _callBack!(notification);
+                              }
+                              return false;
+                            },
+                            child: ScrollConfiguration(
+                              behavior: ScrollConfiguration.of(context)
+                                  .copyWith(scrollbars: false),
+                              child: ListView.builder(
+                                  itemCount:
+                                      pageInfo!.length - 1, //last is max size
+                                  controller: _controllerVertical,
+                                  itemBuilder: (context, index) {
+                                    return Center(
+                                        child: Container(
+                                      alignment: Alignment.topCenter,
+                                      width: pageInfo![index].width * scale,
+                                      child: AspectRatio(
+                                          aspectRatio: pageInfo![index].width /
+                                              pageInfo![index].height,
+                                          child: FittedBox(
+                                            child: SizedBox(
+                                              width: pageInfo![index].width *
+                                                  scale,
+                                              height: pageInfo![index].height *
+                                                  scale,
+                                              child: PdfPageStateful(
+                                                simplePdfRender:
+                                                    _simplePdfRender!,
+                                                index: index,
+                                                scale: scale,
+                                              ),
+                                            ),
+                                          )),
+                                    ));
+                                  }),
+                            ),
+                          ),
                         ),
                       ),
                     ),
@@ -234,6 +249,9 @@ class ScrollControllerTestRouteState extends State<ScrollControllerTestRoute> {
                   width: 8,
                   top: 0,
                   bottom: 0,
+                  // https://github.com/flutter/flutter/issues/25652
+                  // Scrollbar resizing and jumping
+                  // hard to fix
                   child: Scrollbar(
                     thumbVisibility: true,
                     controller: _controllerVertical,
@@ -260,11 +278,15 @@ class ScrollControllerTestRouteState extends State<ScrollControllerTestRoute> {
   }
 }
 
+//
+// cheat ScrollBar. send other widget's child's notification
+//
 _CallBack? _callBack;
 
 class NotificationSender extends StatefulWidget {
   Widget child;
-  NotificationSender({super.key, 
+  NotificationSender({
+    super.key,
     required this.child,
   });
   @override
@@ -280,7 +302,6 @@ class NotificationSenderState extends State<NotificationSender> {
   void initState() {
     _callBack = (notification) {
       notification.dispatch(context);
-      print("=====");
     };
     super.initState();
   }
