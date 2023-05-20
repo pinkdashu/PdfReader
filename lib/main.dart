@@ -31,8 +31,8 @@ class PdfPageStatefulState extends State<PdfPageStateful> {
     print("start fetch");
     //_image =
     //    await widget.simplePdfRender.getImage(widget.index, widget.scale).first;
-    _image =
-        await widget.simplePdfRender.getImagebyPtr(widget.index, widget.scale);
+    _image = await widget.simplePdfRender
+        .getImagebyPtr(widget.index, widget.scale * 1.5); // more clearly
     print(_image.toString());
     if (mounted) {
       setState(() {
