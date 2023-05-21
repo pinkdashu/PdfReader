@@ -1,8 +1,11 @@
 import 'dart:async';
+
 import 'dart:ui' as ui;
 import 'package:buffer_image/buffer_image.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:file_picker/file_picker.dart';
+import 'package:flutter/rendering.dart';
 import 'package:pdfium_bindings/pdfium_bindings.dart';
 import 'pdf_render.dart';
 import 'package:async/async.dart';
@@ -148,7 +151,7 @@ class ScrollControllerTestRouteState extends State<ScrollControllerTestRoute> {
   late String barTitle;
   double basicScale = 1.0; //基础放大比例(maxWidth = Screem Width)
   ValueNotifier<double> scale = ValueNotifier(1.0); // 页面放大比例 120%, 200% 之类的
-
+  List<List<PdfTextBox>>? pdfTextBoxList;
   SimplePdfRender? _simplePdfRender;
   _CallBack? mouseNotification;
   List<ui.Size>? pageInfo;
@@ -170,14 +173,21 @@ class ScrollControllerTestRouteState extends State<ScrollControllerTestRoute> {
     }
     SimplePdfRender.open(widget.path!).then((value) {
       _simplePdfRender = value;
-      _simplePdfRender!.getPageInfo().first.then((value) => {
+      _simplePdfRender!.getpageSize().first.then((value) => {
             setState(() {
               // get all pages size and max size
               pageInfo = value;
+
               if (pageInfo != null) {
                 // make rendered page width the same as widget width
                 basicScale =
                     MediaQuery.of(context).size.width / pageInfo!.last.width;
+
+                pdfTextBoxList = List<List<PdfTextBox>>.generate(
+                    pageInfo!.length - 1, (index) => <PdfTextBox>[]);
+
+                // _simplePdfRender!.getPdfTextBox(1, 1).first.then((value) => print(
+                //     "----------------------${value.left.toString()}--${value.right.toString()}"));
               }
             })
           });
@@ -284,7 +294,22 @@ class ScrollControllerTestRouteState extends State<ScrollControllerTestRoute> {
               itemBuilder: (context) => [
                     PopupMenuItem(
                         child: IconButton(
-                      onPressed: () => {},
+                      onPressed: () => {
+                        for (int i = 0; i < 40; i++)
+                          {
+                            _simplePdfRender!
+                                .getPdfTextBox(0, i)
+                                .first
+                                .then((value) {
+                              setState(() {
+                                value.scale = scale.value * basicScale;
+                                pdfTextBoxList!.first.add(value);
+                                print(
+                                    "qqqqqqqq${pdfTextBoxList![5].length.toString()}");
+                              });
+                            })
+                          }
+                      },
                       icon: Icon(Icons.abc),
                     ))
                   ]),
@@ -339,12 +364,31 @@ class ScrollControllerTestRouteState extends State<ScrollControllerTestRoute> {
                                               height: pageInfo![index].height *
                                                   basicScale *
                                                   scale.value,
-                                              child: PdfPageStateful(
-                                                simplePdfRender:
-                                                    _simplePdfRender!,
-                                                index: index,
-                                                scale: basicScale * scale.value,
-                                              ),
+                                              child: Stack(children: [
+                                                PdfPageStateful(
+                                                  simplePdfRender:
+                                                      _simplePdfRender!,
+                                                  index: index,
+                                                  scale:
+                                                      basicScale * scale.value,
+                                                ),
+                                                pdfTextBoxList == null
+                                                    ? Center()
+                                                    : CustomPaint(
+                                                        painter: RectPainter(
+                                                            pdfTextBoxList![
+                                                                index]),
+                                                        size: ui.Size(
+                                                            pageInfo![index]
+                                                                    .width *
+                                                                basicScale *
+                                                                scale.value,
+                                                            pageInfo![index]
+                                                                    .height *
+                                                                basicScale *
+                                                                scale.value),
+                                                      )
+                                              ]),
                                             ),
                                           )),
                                     ));
@@ -358,7 +402,10 @@ class ScrollControllerTestRouteState extends State<ScrollControllerTestRoute> {
                 ),
                 Positioned(
                   right: 0,
-                  width: 8,
+                  width:
+                      Platform.isAndroid || Platform.isFuchsia || Platform.isIOS
+                          ? 4
+                          : 8,
                   top: 0,
                   bottom: 0,
                   // https://github.com/flutter/flutter/issues/25652
@@ -387,6 +434,37 @@ class ScrollControllerTestRouteState extends State<ScrollControllerTestRoute> {
                 );
               }),
     );
+  }
+}
+
+class RectPainter extends CustomPainter {
+  List<PdfTextBox> textBoxList;
+
+  @override
+  RectPainter(this.textBoxList);
+
+  @override
+  void paint(ui.Canvas canvas, ui.Size size) {
+    print("+++++++++++++++++++++++++++++++");
+
+    for (var textBox in textBoxList) {
+      final paint = Paint()
+        ..color = ui.Color.fromARGB(119, 255, 184, 77)
+        ..style = PaintingStyle.fill;
+
+      canvas.drawRect(
+          Rect.fromLTRB(
+              textBox.left, textBox.top, textBox.right, textBox.bottom),
+          paint);
+    }
+    // TODO: implement paint
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) {
+    // TODO: implement shouldRepaint
+
+    return true;
   }
 }
 

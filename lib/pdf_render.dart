@@ -15,7 +15,7 @@ import 'package:path/path.dart' as path;
 import 'package:pdfium_bindings/pdfium_bindings.dart';
 import 'rgba_image.dart';
 
-enum _Codes { init, image, ack, pageInfo, imagePtr, pageText }
+enum _Codes { init, image, ack, pageSize, imagePtr, pageTextBox }
 
 class _Command {
   const _Command(this.code, {this.arg0, this.arg1});
@@ -37,7 +37,10 @@ class SimplePdfRender {
       Queue<StreamController<widget.Image>>();
   final Queue<StreamController<Map>> _resultStreamPtr =
       Queue<StreamController<Map>>();
-  late StreamController<List<ui.Size>> _resultPageInfo;
+  final Queue<StreamController<PdfTextBox>> _resultPdfTextBox =
+      Queue<StreamController<PdfTextBox>>();
+
+  late StreamController<List<ui.Size>> _resultPageSize;
 
   static Future<SimplePdfRender> open(String path) async {
     final ReceivePort receivePort = ReceivePort();
@@ -54,7 +57,7 @@ class SimplePdfRender {
   }
 
   void _handleCommand(_Command command) {
-    //print("handleCommand  ${command.code}");
+    print("handleCommand  ${command.code}");
     switch (command.code) {
       case _Codes.init:
         _sendPort = command.arg0 as SendPort;
@@ -75,12 +78,16 @@ class SimplePdfRender {
         _resultStreamPtr.last.add(command.arg0 as Map);
         _resultStreamPtr.removeLast().close();
         break;
-      case _Codes.pageInfo:
-        _resultPageInfo
+      case _Codes.pageSize:
+        _resultPageSize
           ..add(command.arg0 as List<ui.Size>)
           ..close();
         break;
-
+      case _Codes.pageTextBox:
+        _resultPdfTextBox
+          ..last.add(command.arg0 as PdfTextBox)
+          ..removeLast().close();
+        break;
       default:
     }
   }
@@ -116,10 +123,18 @@ class SimplePdfRender {
     );
   }
 
-  Stream<List<ui.Size>> getPageInfo() {
-    _resultPageInfo = StreamController<List<ui.Size>>();
-    _sendPort.send(const _Command(_Codes.pageInfo));
-    return _resultPageInfo.stream;
+  Stream<List<ui.Size>> getpageSize() {
+    _resultPageSize = StreamController<List<ui.Size>>();
+    _sendPort.send(const _Command(_Codes.pageSize));
+    return _resultPageSize.stream;
+  }
+
+  Stream<PdfTextBox> getPdfTextBox(int page, int index) {
+    StreamController<PdfTextBox> resultPdfTextBox =
+        StreamController<PdfTextBox>();
+    _resultPdfTextBox.add(resultPdfTextBox);
+    _sendPort.send(_Command(_Codes.pageTextBox, arg0: page, arg1: index));
+    return resultPdfTextBox.stream;
   }
 }
 
@@ -170,9 +185,17 @@ class _SimplePdfRenderServer {
         print("send image $page,costs ${costs.toString()}");
         _sendPort.send(_Command(_Codes.imagePtr, arg0: image));
 
-      case _Codes.pageInfo:
-        var pageInfo = _pdfRender.getPageInfo();
-        _sendPort.send(_Command(_Codes.pageInfo, arg0: pageInfo));
+      case _Codes.pageSize:
+        var pageSize = _pdfRender.getPageSize();
+        _sendPort.send(_Command(_Codes.pageSize, arg0: pageSize));
+
+      case _Codes.pageTextBox:
+        var page = command.arg0 as int;
+        var index = command.arg1 as int;
+        var textBox = _pdfRender.getPdfTextBox(page, index);
+        print(textBox.toString());
+        _sendPort.send(_Command(_Codes.pageTextBox, arg0: textBox));
+
       default:
     }
   }
@@ -307,9 +330,9 @@ class PdfRender {
 
   Pointer<FS_SIZEF> size = malloc.allocate<FS_SIZEF>(sizeOf<FS_SIZEF>());
 
-  List<ui.Size> getPageInfo() {
+  List<ui.Size> getPageSize() {
     int count = getPageCount();
-    List<ui.Size> pageInfo = [];
+    List<ui.Size> pageSize = [];
     var start = DateTime.now();
     double maxWidth = 0, maxHeight = 0;
 
@@ -321,11 +344,11 @@ class PdfRender {
       if (maxHeight < size[0].height) {
         maxHeight = size[0].height;
       }
-      pageInfo.add(ui.Size(size[0].width, size[0].height));
+      pageSize.add(ui.Size(size[0].width, size[0].height));
     }
-    pageInfo.add(ui.Size(maxWidth, maxHeight));
+    pageSize.add(ui.Size(maxWidth, maxHeight));
     print("get page costs ${DateTime.now().difference(start)}");
-    return pageInfo;
+    return pageSize;
   }
 
   /// Returns the number of pages of the loaded document.
@@ -701,4 +724,36 @@ class PdfRender {
     pagePtr['height'] = h;
     return pagePtr;
   }
+
+  //Pointer<FS_SIZEF> size = malloc.allocate<FS_SIZEF>(sizeOf<FS_SIZEF>());
+  var left = malloc.allocate<Double>(sizeOf<Double>());
+  var right = malloc.allocate<Double>(sizeOf<Double>());
+  var bottom = malloc.allocate<Double>(sizeOf<Double>());
+  var top = malloc.allocate<Double>(sizeOf<Double>());
+  // fpdf_text
+  PdfTextBox getPdfTextBox(int page, int index) {
+    var _page = getPage(page);
+    var textPage = pdfium.FPDFText_LoadPage(_page);
+    var height = pdfium.FPDF_GetPageHeight(_page);
+    pdfium.FPDFText_GetCharBox(textPage, index, left, right, bottom, top);
+
+    return PdfTextBox(left[0], right[0], height - bottom[0],
+        height - top[0]); // convert page coordinate
+  }
+}
+
+class PdfTextBox {
+  @override
+  String toString() {
+    return "PdfTextBox[left:$left,rigth:$right,bottom:$bottom,top:$top]";
+  }
+
+  PdfTextBox(this._left, this._right, this._bottom, this._top,
+      {this.scale = 1});
+
+  double _left, _right, _bottom, _top, scale;
+  double get left => _left * scale;
+  double get right => _right * scale;
+  double get bottom => _bottom * scale;
+  double get top => _top * scale;
 }
