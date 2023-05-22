@@ -429,7 +429,7 @@ class PdfRender {
       flags,
     );
     //  The pointer to the first byte of the bitmap buffer The data is in BGRA format
-    buffer = pdfium.FPDFBitmap_GetBuffer(bitmap!);
+    buffer = pdfium.FPDFBitmap_GetBuffer(bitmap!).cast();
     //stride = width * 4 bytes per pixel BGRA
     //var stride = pdfium.FPDFBitmap_GetStride(bitmap);
     ////print('stride $stride');
@@ -717,7 +717,7 @@ class PdfRender {
       flags,
     );
     //  The pointer to the first byte of the bitmap buffer The data is in BGRA format
-    buffer = pdfium.FPDFBitmap_GetBuffer(bitmap!);
+    buffer = pdfium.FPDFBitmap_GetBuffer(bitmap!).cast();
     Map pagePtr = {};
     pagePtr['address'] = buffer!.address;
     pagePtr['width'] = w;

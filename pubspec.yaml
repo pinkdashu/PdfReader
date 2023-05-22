@@ -40,7 +40,7 @@ dependencies:
   buffer_image: ^0.3.12
   async: ^2.11.0
   fluttertoast: ^8.2.1
-  pdfium_bindings: 
+  pdfium_bindings:
     git:
       url: https://github.com/pinkdashu/pdfium_bindings.git
 
