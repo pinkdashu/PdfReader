@@ -246,7 +246,6 @@ class PdfRender {
     config.ref.m_pIsolate = nullptr;
     config.ref.m_v8EmbedderSlot = 0;
     pdfium.FPDF_InitLibraryWithConfig(config);
-    //print('pdfium init');
   }
 
   /// Loads a document from [path], and if necessary, a [password] can be
@@ -732,9 +731,9 @@ class PdfRender {
   var top = malloc.allocate<Double>(sizeOf<Double>());
   // fpdf_text
   PdfTextBox getPdfTextBox(int page, int index) {
-    var _page = getPage(page);
-    var textPage = pdfium.FPDFText_LoadPage(_page);
-    var height = pdfium.FPDF_GetPageHeight(_page);
+    var page0 = getPage(page);
+    var textPage = pdfium.FPDFText_LoadPage(page0);
+    var height = pdfium.FPDF_GetPageHeight(page0);
     pdfium.FPDFText_GetCharBox(textPage, index, left, right, bottom, top);
 
     return PdfTextBox(left[0], right[0], height - bottom[0],

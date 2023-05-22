@@ -1,17 +1,12 @@
 import 'dart:async';
 
 import 'dart:ui' as ui;
-import 'package:buffer_image/buffer_image.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:file_picker/file_picker.dart';
-import 'package:flutter/rendering.dart';
-import 'package:pdfium_bindings/pdfium_bindings.dart';
 import 'pdf_render.dart';
 import 'package:async/async.dart';
 import "dart:io";
-import 'dart:ffi';
-import 'rgba_image.dart';
 import 'package:fluttertoast/fluttertoast.dart';
 
 class PdfPageStateful extends StatefulWidget {
@@ -112,7 +107,7 @@ class Home extends StatelessWidget {
       body: Center(
         child: FloatingActionButton.extended(
           onPressed: () => _pressOpenBtn(context),
-          icon: Icon(Icons.add),
+          icon: const Icon(Icons.add),
           label: const Text('打开PDF文件'),
         ),
       ),
@@ -144,27 +139,73 @@ class ScrollControllerTestRoute extends StatefulWidget {
 
 typedef _CallBack = void Function(Notification notification);
 
+class Scale {
+  Scale(
+      {this.basicScale = 1.0, pageScale = 1.0, required BuildContext context}) {
+    _pageScale = ValueNotifier<double>(pageScale);
+    _pageScale.addListener(() => _showToast());
+    _fToast = FToast();
+    _fToast.init(context);
+  }
+
+  // 基础放大比例(maxWidth = Screem Width)
+  double basicScale;
+  // 页面放大比例 120%, 200% 之类的
+  set pageScale(double value) => _pageScale.value = value;
+  double get pageScale => _pageScale.value;
+  late ValueNotifier<double> _pageScale;
+  double get value => basicScale * pageScale;
+
+  late FToast _fToast;
+
+  void _showToast() {
+    Widget toast = Container(
+      padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 12.0),
+      decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(25.0), color: Colors.black54),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Icon(
+            Icons.aspect_ratio,
+            color: Colors.white,
+          ),
+          const SizedBox(
+            width: 24.0,
+          ),
+          Text(
+            "${(pageScale * 100).toStringAsFixed(0)} %",
+            style: const TextStyle(color: Colors.white),
+          ),
+        ],
+      ),
+    );
+    _fToast.removeQueuedCustomToasts();
+    _fToast.showToast(
+        child: toast,
+        gravity: ToastGravity.CENTER,
+        toastDuration: const Duration(seconds: 1),
+        fadeDuration: const Duration(milliseconds: 200));
+  }
+}
+
 class ScrollControllerTestRouteState extends State<ScrollControllerTestRoute> {
   final ScrollController _controllerVertical = ScrollController();
   final ScrollController _controllerHorizontal = ScrollController();
   bool showToTopBtn = false; //是否显示“返回到顶部”按钮
   late String barTitle;
-  double basicScale = 1.0; //基础放大比例(maxWidth = Screem Width)
-  ValueNotifier<double> scale = ValueNotifier(1.0); // 页面放大比例 120%, 200% 之类的
+  late Scale scale;
   List<List<PdfTextBox>>? pdfTextBoxList;
   SimplePdfRender? _simplePdfRender;
   _CallBack? mouseNotification;
   List<ui.Size>? pageInfo;
 
-  late FToast fToast;
   @override
   void initState() {
     // must contain
     super.initState();
-    // initialize toast component
-    fToast = FToast();
-    fToast.init(context);
-    scale.addListener(() => _showToast());
+    // initialize scale component
+    scale = Scale(context: context);
     // get pdf name
     barTitle = widget.path!.split('\\').last.split('.').first; // get pdf name
     // initialize pdf render component
@@ -180,7 +221,7 @@ class ScrollControllerTestRouteState extends State<ScrollControllerTestRoute> {
 
               if (pageInfo != null) {
                 // make rendered page width the same as widget width
-                basicScale =
+                scale.basicScale =
                     MediaQuery.of(context).size.width / pageInfo!.last.width;
 
                 pdfTextBoxList = List<List<PdfTextBox>>.generate(
@@ -216,36 +257,6 @@ class ScrollControllerTestRouteState extends State<ScrollControllerTestRoute> {
     super.dispose();
   }
 
-  void _showToast() {
-    Widget toast = Container(
-      padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 12.0),
-      decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(25.0), color: Colors.black54),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(
-            Icons.aspect_ratio,
-            color: Colors.white,
-          ),
-          SizedBox(
-            width: 24.0,
-          ),
-          Text(
-            "${(scale.value * 100).toStringAsFixed(0)} %",
-            style: TextStyle(color: Colors.white),
-          ),
-        ],
-      ),
-    );
-    fToast.removeQueuedCustomToasts();
-    fToast.showToast(
-        child: toast,
-        gravity: ToastGravity.CENTER,
-        toastDuration: Duration(seconds: 1),
-        fadeDuration: Duration(milliseconds: 200));
-  }
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -256,37 +267,37 @@ class ScrollControllerTestRouteState extends State<ScrollControllerTestRoute> {
           IconButton(
               onPressed: () {
                 setState(() {
-                  scale.value = scale.value + 0.2;
+                  scale.pageScale = scale.pageScale + 0.2;
                 });
               },
-              icon: Icon(Icons.add)),
+              icon: const Icon(Icons.add)),
           IconButton(
-              onPressed: scale.value <= 0.21
+              onPressed: scale.pageScale <= 0.21
                   ? null
                   : () {
                       setState(() {
-                        if (scale.value - 0.2 > 0.2) {
-                          scale.value = scale.value - 0.2;
+                        if (scale.pageScale - 0.2 > 0.2) {
+                          scale.pageScale = scale.pageScale - 0.2;
                         }
                       });
                     },
-              icon: Icon(Icons.remove)),
+              icon: const Icon(Icons.remove)),
           IconButton(
               onPressed: () {
                 setState(() {
-                  scale.value = 1.0;
-                  basicScale = basicScale =
+                  scale.pageScale = 1.0;
+                  scale.basicScale = scale.basicScale =
                       MediaQuery.of(context).size.width / pageInfo!.last.width;
                 });
               },
-              icon: Icon(Icons.fit_screen)),
+              icon: const Icon(Icons.fit_screen)),
           PopupMenuButton(
-              icon: Icon(Icons.search),
+              icon: const Icon(Icons.search),
               enabled: false,
               itemBuilder: (context) => [
                     PopupMenuItem(
                         child: TextFormField(
-                      decoration: InputDecoration(
+                      decoration: const InputDecoration(
                           hintText: "键入一个字词或页码", icon: Icon(Icons.search)),
                     ))
                   ]),
@@ -302,15 +313,13 @@ class ScrollControllerTestRouteState extends State<ScrollControllerTestRoute> {
                                 .first
                                 .then((value) {
                               setState(() {
-                                value.scale = scale.value * basicScale;
+                                value.scale = scale.value;
                                 pdfTextBoxList!.first.add(value);
-                                print(
-                                    "qqqqqqqq${pdfTextBoxList![5].length.toString()}");
                               });
                             })
                           }
                       },
-                      icon: Icon(Icons.abc),
+                      icon: const Icon(Icons.abc),
                     ))
                   ]),
         ],
@@ -329,7 +338,6 @@ class ScrollControllerTestRouteState extends State<ScrollControllerTestRoute> {
                       child: Center(
                         child: SizedBox(
                           width: pageInfo!.last.width *
-                              basicScale *
                               scale.value, //last is max size
                           child: NotificationListener(
                             onNotification: (Notification notification) {
@@ -350,47 +358,31 @@ class ScrollControllerTestRouteState extends State<ScrollControllerTestRoute> {
                                     return Center(
                                         child: Container(
                                       alignment: Alignment.topCenter,
-                                      width: pageInfo![index].width *
-                                          basicScale *
-                                          scale.value,
+                                      width:
+                                          pageInfo![index].width * scale.value,
                                       child: AspectRatio(
                                           aspectRatio: pageInfo![index].width /
                                               pageInfo![index].height,
-                                          child: FittedBox(
-                                            child: SizedBox(
-                                              width: pageInfo![index].width *
-                                                  basicScale *
-                                                  scale.value,
-                                              height: pageInfo![index].height *
-                                                  basicScale *
-                                                  scale.value,
-                                              child: Stack(children: [
-                                                PdfPageStateful(
-                                                  simplePdfRender:
-                                                      _simplePdfRender!,
-                                                  index: index,
-                                                  scale:
-                                                      basicScale * scale.value,
-                                                ),
-                                                pdfTextBoxList == null
-                                                    ? Center()
-                                                    : CustomPaint(
-                                                        painter: RectPainter(
-                                                            pdfTextBoxList![
-                                                                index]),
-                                                        size: ui.Size(
-                                                            pageInfo![index]
-                                                                    .width *
-                                                                basicScale *
-                                                                scale.value,
-                                                            pageInfo![index]
-                                                                    .height *
-                                                                basicScale *
-                                                                scale.value),
-                                                      )
-                                              ]),
+                                          child: Stack(children: [
+                                            PdfPageStateful(
+                                              simplePdfRender:
+                                                  _simplePdfRender!,
+                                              index: index,
+                                              scale: scale.value,
                                             ),
-                                          )),
+                                            pdfTextBoxList == null
+                                                ? const Center()
+                                                : CustomPaint(
+                                                    painter: RectPainter(
+                                                        pdfTextBoxList![index]),
+                                                    size: ui.Size(
+                                                        pageInfo![index].width *
+                                                            scale.value,
+                                                        pageInfo![index]
+                                                                .height *
+                                                            scale.value),
+                                                  )
+                                          ])),
                                     ));
                                   }),
                             ),
@@ -449,7 +441,7 @@ class RectPainter extends CustomPainter {
 
     for (var textBox in textBoxList) {
       final paint = Paint()
-        ..color = ui.Color.fromARGB(119, 255, 184, 77)
+        ..color = const ui.Color.fromARGB(119, 255, 184, 77)
         ..style = PaintingStyle.fill;
 
       canvas.drawRect(
@@ -461,10 +453,9 @@ class RectPainter extends CustomPainter {
   }
 
   @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) {
+  bool shouldRepaint(covariant RectPainter oldDelegate) {
     // TODO: implement shouldRepaint
-
-    return true;
+    return listEquals(oldDelegate.textBoxList, textBoxList);
   }
 }
 
