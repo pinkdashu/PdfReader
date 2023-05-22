@@ -8,6 +8,7 @@ import 'pdf_render.dart';
 import 'package:async/async.dart';
 import "dart:io";
 import 'package:fluttertoast/fluttertoast.dart';
+import 'selectable_widget.dart';
 
 class PdfPageStateful extends StatefulWidget {
   late SimplePdfRender simplePdfRender;
@@ -143,7 +144,10 @@ class Scale {
   Scale(
       {this.basicScale = 1.0, pageScale = 1.0, required BuildContext context}) {
     _pageScale = ValueNotifier<double>(pageScale);
-    _pageScale.addListener(() => _showToast());
+    _pageScale.addListener(() {
+      _showToast();
+      PdfTextBox.scale = value;
+    });
     _fToast = FToast();
     _fToast.init(context);
   }
@@ -313,7 +317,7 @@ class ScrollControllerTestRouteState extends State<ScrollControllerTestRoute> {
                                 .first
                                 .then((value) {
                               setState(() {
-                                value.scale = scale.value;
+                                PdfTextBox.scale = scale.value;
                                 pdfTextBoxList!.first.add(value);
                               });
                             })
@@ -350,41 +354,83 @@ class ScrollControllerTestRouteState extends State<ScrollControllerTestRoute> {
                             child: ScrollConfiguration(
                               behavior: ScrollConfiguration.of(context)
                                   .copyWith(scrollbars: false),
-                              child: ListView.builder(
-                                  itemCount:
-                                      pageInfo!.length - 1, //last is max size
-                                  controller: _controllerVertical,
-                                  itemBuilder: (context, index) {
-                                    return Center(
-                                        child: Container(
-                                      alignment: Alignment.topCenter,
-                                      width:
-                                          pageInfo![index].width * scale.value,
-                                      child: AspectRatio(
-                                          aspectRatio: pageInfo![index].width /
-                                              pageInfo![index].height,
-                                          child: Stack(children: [
-                                            PdfPageStateful(
-                                              simplePdfRender:
-                                                  _simplePdfRender!,
-                                              index: index,
-                                              scale: scale.value,
-                                            ),
-                                            pdfTextBoxList == null
-                                                ? const Center()
-                                                : CustomPaint(
-                                                    painter: RectPainter(
-                                                        pdfTextBoxList![index]),
-                                                    size: ui.Size(
-                                                        pageInfo![index].width *
+                              child: SelectionArea(
+                                child: ListView.builder(
+                                    itemCount:
+                                        pageInfo!.length - 1, //last is max size
+                                    controller: _controllerVertical,
+                                    itemBuilder: (context, index) {
+                                      return Center(
+                                          child: Container(
+                                        alignment: Alignment.topCenter,
+                                        width: pageInfo![index].width *
+                                            scale.value,
+                                        child: SizedBox(
+                                            width: pageInfo!.last.width *
+                                                scale.value,
+                                            height: pageInfo!.last.height *
+                                                scale.value,
+                                            child: Stack(children: [
+                                              PdfPageStateful(
+                                                simplePdfRender:
+                                                    _simplePdfRender!,
+                                                index: index,
+                                                scale: scale.value,
+                                              ),
+                                              pdfTextBoxList == null
+                                                  ? const Center()
+                                                  : FittedBox(
+                                                      child: SizedBox(
+                                                        width: pageInfo![index]
+                                                                .width *
                                                             scale.value,
-                                                        pageInfo![index]
+                                                        height: pageInfo![index]
                                                                 .height *
-                                                            scale.value),
-                                                  )
-                                          ])),
-                                    ));
-                                  }),
+                                                            scale.value,
+                                                        child:
+                                                            CustomMultiChildLayout(
+                                                          delegate:
+                                                              MyMultiChildLayoutDelegate(
+                                                                  pdfTextBoxList![
+                                                                      index]),
+                                                          children: <Widget>[
+                                                            for (var box
+                                                                in pdfTextBoxList![
+                                                                    index])
+                                                              LayoutId(
+                                                                  id: box,
+                                                                  child:
+                                                                      MySelectableAdapter(
+                                                                    child: SizedBox(
+                                                                        height: box
+                                                                            .height,
+                                                                        width: box
+                                                                            .width),
+                                                                    widgetText:
+                                                                        'aaa',
+                                                                  ))
+                                                          ],
+                                                        ),
+                                                      ),
+                                                    ),
+                                              pdfTextBoxList == null
+                                                  ? const Center()
+                                                  : CustomPaint(
+                                                      painter: RectPainter(
+                                                          pdfTextBoxList![
+                                                              index]),
+                                                      size: Size(
+                                                          pageInfo![index]
+                                                                  .width *
+                                                              scale.value,
+                                                          pageInfo![index]
+                                                                  .height *
+                                                              scale.value),
+                                                    )
+                                            ])),
+                                      ));
+                                    }),
+                              ),
                             ),
                           ),
                         ),
@@ -429,6 +475,26 @@ class ScrollControllerTestRouteState extends State<ScrollControllerTestRoute> {
   }
 }
 
+class MyMultiChildLayoutDelegate extends MultiChildLayoutDelegate {
+  MyMultiChildLayoutDelegate(this.boxs);
+
+  List<PdfTextBox> boxs;
+
+  @override
+  void performLayout(ui.Size size) {
+    for (var box in boxs) {
+      print("${box.width.toString()}jjjjjjjjjjjjjjjj");
+      positionChild(box, Offset(box.dx, box.dy));
+      layoutChild(box, BoxConstraints.tight(Size(box.width, box.height)));
+    }
+  }
+
+  @override
+  bool shouldRelayout(covariant MultiChildLayoutDelegate oldDelegate) {
+    return oldDelegate.hashCode != hashCode;
+  }
+}
+
 class RectPainter extends CustomPainter {
   List<PdfTextBox> textBoxList;
 
@@ -445,9 +511,14 @@ class RectPainter extends CustomPainter {
         ..style = PaintingStyle.fill;
 
       canvas.drawRect(
-          Rect.fromLTRB(
-              textBox.left, textBox.top, textBox.right, textBox.bottom),
+          Rect.fromCenter(
+              center: Offset(textBox.dx, textBox.dy),
+              width: textBox.width.roundToDouble(),
+              height: textBox.height.roundToDouble()),
           paint);
+      // Rect.fromLTRB(
+      //     textBox.left, textBox.top, textBox.right, textBox.bottom),
+      // paint);
     }
     // TODO: implement paint
   }

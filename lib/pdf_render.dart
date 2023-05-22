@@ -747,12 +747,20 @@ class PdfTextBox {
     return "PdfTextBox[left:$left,rigth:$right,bottom:$bottom,top:$top]";
   }
 
-  PdfTextBox(this._left, this._right, this._bottom, this._top,
-      {this.scale = 1});
-
-  double _left, _right, _bottom, _top, scale;
+  PdfTextBox(
+    this._left,
+    this._right,
+    this._bottom,
+    this._top,
+  );
+  static double scale = 1;
+  double _left, _right, _bottom, _top;
   double get left => _left * scale;
   double get right => _right * scale;
   double get bottom => _bottom * scale;
   double get top => _top * scale;
+  double get height => (_bottom - _top) * scale;
+  double get width => (_right - _left) * scale;
+  double get dx => (left + right) / 2;
+  double get dy => (top + bottom) / 2;
 }
