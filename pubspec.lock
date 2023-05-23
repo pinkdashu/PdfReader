@@ -49,6 +49,14 @@ packages:
       url: "https://mirror.sjtu.edu.cn/dart-pub/"
     source: hosted
     version: "1.3.0"
+  charset:
+    dependency: "direct main"
+    description:
+      name: charset
+      sha256: "814885f908431411919435ddddaeffa90179d16e59380155327291259b3e4384"
+      url: "https://mirror.sjtu.edu.cn/dart-pub/"
+    source: hosted
+    version: "2.0.0"
   cli_util:
     dependency: transitive
     description:

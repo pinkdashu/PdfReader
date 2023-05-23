@@ -124,7 +124,7 @@ class _RenderSelectableAdapter extends RenderProxyBox
   // Selectable APIs.
 
   // Adjust this value to enlarge or shrink the selection highlight.
-  static const double _padding = 10.0;
+  static const double _padding = 1.0;
   Rect _getSelectionHighlightRect() {
     return Rect.fromLTWH(0 - _padding, 0 - _padding, size.width + _padding * 2,
         size.height + _padding * 2);

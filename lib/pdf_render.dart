@@ -10,12 +10,22 @@ import 'package:flutter/widgets.dart' as widget;
 import 'package:ffi/ffi.dart';
 import 'package:flutter/services.dart';
 import 'package:image/image.dart' as img;
-
+import 'dart:convert';
 import 'package:path/path.dart' as path;
 import 'package:pdfium_bindings/pdfium_bindings.dart';
 import 'rgba_image.dart';
+import 'package:charset/charset.dart';
 
-enum _Codes { init, image, ack, pageSize, imagePtr, pageTextBox }
+enum _Codes {
+  init,
+  image,
+  ack,
+  pageSize,
+  imagePtr,
+  pageTextBox,
+  pageTextBoxs,
+  cancelRender
+}
 
 class _Command {
   const _Command(this.code, {this.arg0, this.arg1});
@@ -39,6 +49,8 @@ class SimplePdfRender {
       Queue<StreamController<Map>>();
   final Queue<StreamController<PdfTextBox>> _resultPdfTextBox =
       Queue<StreamController<PdfTextBox>>();
+  final Queue<StreamController<List<PdfTextBox>>> _resultPdfTextBoxs =
+      Queue<StreamController<List<PdfTextBox>>>();
 
   late StreamController<List<ui.Size>> _resultPageSize;
 
@@ -69,7 +81,7 @@ class SimplePdfRender {
         _completers.removeLast().complete();
         break;
       case _Codes.image:
-        print("queue length:${_resultStream.length}");
+        // print("queue length:${_resultStream.length}");
         _resultStream.last.add(command.arg0 as widget.Image);
         _resultStream.removeLast().close();
         break;
@@ -77,6 +89,10 @@ class SimplePdfRender {
         print("queue length:${_resultStreamPtr.length}");
         _resultStreamPtr.last.add(command.arg0 as Map);
         _resultStreamPtr.removeLast().close();
+        getImagePtrCommandMap.remove(getImagePtrCommandQueue.removeLast());
+        if (getImagePtrCommandQueue.isNotEmpty) {
+          _sendPort.send(getImagePtrCommandQueue.last);
+        }
         break;
       case _Codes.pageSize:
         _resultPageSize
@@ -88,6 +104,13 @@ class SimplePdfRender {
           ..last.add(command.arg0 as PdfTextBox)
           ..removeLast().close();
         break;
+      case _Codes.pageTextBoxs:
+        _resultPdfTextBoxs
+          ..last.add(command.arg0 as List<PdfTextBox>)
+          ..removeLast().close();
+        break;
+      case _Codes.cancelRender:
+        break;
       default:
     }
   }
@@ -96,21 +119,34 @@ class SimplePdfRender {
     //print("start get image");
     StreamController<widget.Image> resultStream =
         StreamController<widget.Image>();
-    _resultStream.addFirst(resultStream);
+    _resultStream.addFirst(resultStream); // queue
     _sendPort.send(_Command(_Codes.image, arg0: page, arg1: scale));
     return resultStream.stream;
   }
 
+  Queue<_Command> getImagePtrCommandQueue = Queue<_Command>();
+  Map<int, _Command> getImagePtrCommandMap = {};
+  Map<_Command, StreamController<Map>> resultStreamPtrMap = {};
   Stream<Map> getImagePtr(int page, double scale) {
     print("start get Ptr");
     StreamController<Map> resultStreamPtr = StreamController<Map>();
-    _resultStreamPtr.addFirst(resultStreamPtr);
-    _sendPort.send(_Command(_Codes.imagePtr, arg0: page, arg1: scale));
+    _resultStreamPtr.addFirst(resultStreamPtr); // queue
+    var command = _Command(_Codes.imagePtr, arg0: page, arg1: scale);
+    getImagePtrCommandQueue.addFirst(command);
+    getImagePtrCommandMap[page] = command;
+    resultStreamPtrMap[command] = resultStreamPtr;
+    if (getImagePtrCommandQueue.length == 1) {
+      _sendPort.send(getImagePtrCommandQueue.first);
+    } else if (getImagePtrCommandQueue.length > 5) {}
     return resultStreamPtr.stream;
   }
 
-  Future<widget.Image> getImagebyPtr(int page, double scale) async {
+  Future<Widget?> getImagebyPtr(int page, double scale) async {
     var addr = await getImagePtr(page, scale).first;
+    if (addr.isEmpty) {
+      print("zzzzzzzzzzzzzzz");
+      return null;
+    }
     var imagePtr = Pointer<Uint8>.fromAddress(addr['address']);
     var image = imagePtr.asTypedList(addr['width'] * addr['height'] * 4);
     var bmp = Rgba4444ToBmp(image, addr['width'] as int, addr['height'] as int);
@@ -132,9 +168,28 @@ class SimplePdfRender {
   Stream<PdfTextBox> getPdfTextBox(int page, int index) {
     StreamController<PdfTextBox> resultPdfTextBox =
         StreamController<PdfTextBox>();
-    _resultPdfTextBox.add(resultPdfTextBox);
+    _resultPdfTextBox.addFirst(resultPdfTextBox); // queue
     _sendPort.send(_Command(_Codes.pageTextBox, arg0: page, arg1: index));
     return resultPdfTextBox.stream;
+  }
+
+  Stream<List<PdfTextBox>> getPdfTextBoxs(int page, List<int> index) {
+    StreamController<List<PdfTextBox>> resultPdfTextBoxs =
+        StreamController<List<PdfTextBox>>();
+    _resultPdfTextBoxs.addFirst(resultPdfTextBoxs); // queue
+    _sendPort.send(_Command(_Codes.pageTextBoxs, arg0: page, arg1: index));
+    return resultPdfTextBoxs.stream;
+  }
+
+  void cancelPdfRender(int page, double scale) {
+    if (getImagePtrCommandQueue.contains(getImagePtrCommandMap[page])) {
+      print('vvvvvvvvvv');
+      resultStreamPtrMap[getImagePtrCommandMap[page]]!
+        ..add({})
+        ..close();
+      _resultStreamPtr.remove(resultStreamPtrMap[getImagePtrCommandMap[page]]);
+      getImagePtrCommandQueue.remove(getImagePtrCommandMap[page]);
+    }
   }
 }
 
@@ -193,9 +248,16 @@ class _SimplePdfRenderServer {
         var page = command.arg0 as int;
         var index = command.arg1 as int;
         var textBox = _pdfRender.getPdfTextBox(page, index);
-        print(textBox.toString());
+        // print(textBox.toString());
         _sendPort.send(_Command(_Codes.pageTextBox, arg0: textBox));
 
+      case _Codes.pageTextBoxs:
+        var page = command.arg0 as int;
+        var index = command.arg1 as List<int>;
+
+        var textBoxs = _pdfRender.getPdfTextBoxs(page, index);
+        // print(textBoxs.toString());
+        _sendPort.send(_Command(_Codes.pageTextBoxs, arg0: textBoxs));
       default:
     }
   }
@@ -346,7 +408,7 @@ class PdfRender {
       pageSize.add(ui.Size(size[0].width, size[0].height));
     }
     pageSize.add(ui.Size(maxWidth, maxHeight));
-    print("get page costs ${DateTime.now().difference(start)}");
+    // print("get page costs ${DateTime.now().difference(start)}");
     return pageSize;
   }
 
@@ -592,8 +654,8 @@ class PdfRender {
     int pngLevel = 6,
   }) {
     //print('png render');
-    final page0 = getPage(page);
-    if (page0 == nullptr) {
+    final _page = getPage(page);
+    if (_page == nullptr) {
       throw PdfiumException(message: 'Page not load');
     }
     // var backgroundStr = "FFFFFFFF"; // as int 268435455
@@ -648,12 +710,12 @@ class PdfRender {
       flags: flags,
     );
     var costs = DateTime.now().difference(start);
-    print("-----costs ${costs.toString()}");
+    // print("-----costs ${costs.toString()}");
 
     var bmp = Rgba4444ToBmp(bytes, w.round(), h.round());
 
     costs = DateTime.now().difference(start);
-    print("-----costs ${costs.toString()}");
+    // print("-----costs ${costs.toString()}");
     ////print(image.toString());
     return widget.Image.memory(
       bmp,
@@ -725,35 +787,70 @@ class PdfRender {
   }
 
   //Pointer<FS_SIZEF> size = malloc.allocate<FS_SIZEF>(sizeOf<FS_SIZEF>());
-  var left = malloc.allocate<Double>(sizeOf<Double>());
-  var right = malloc.allocate<Double>(sizeOf<Double>());
-  var bottom = malloc.allocate<Double>(sizeOf<Double>());
-  var top = malloc.allocate<Double>(sizeOf<Double>());
+  late Pointer<Double> left, right, bottom, top;
+  late Pointer<UnsignedShort> text;
   // fpdf_text
   PdfTextBox getPdfTextBox(int page, int index) {
-    var page0 = getPage(page);
-    var textPage = pdfium.FPDFText_LoadPage(page0);
-    var height = pdfium.FPDF_GetPageHeight(page0);
+    left = allocator<Double>();
+    right = allocator<Double>();
+    bottom = allocator<Double>();
+    top = allocator<Double>();
+    text = allocator<UnsignedShort>();
+    var _page = getPage(page);
+    var textPage = pdfium.FPDFText_LoadPage(_page);
+    var height = pdfium.FPDF_GetPageHeight(_page);
     pdfium.FPDFText_GetCharBox(textPage, index, left, right, bottom, top);
 
     return PdfTextBox(left[0], right[0], height - bottom[0],
         height - top[0]); // convert page coordinate
+  }
+
+  List<PdfTextBox> getPdfTextBoxs(int page, List<int> index) {
+    left = allocator<Double>();
+    right = allocator<Double>();
+    bottom = allocator<Double>();
+    top = allocator<Double>();
+
+    var _page = getPage(page);
+    var textPage = pdfium.FPDFText_LoadPage(_page);
+    var height = pdfium.FPDF_GetPageHeight(_page);
+    var count = pdfium.FPDFText_CountChars(textPage);
+    text = allocator<UnsignedShort>(count * 2);
+
+    pdfium.FPDFText_GetText(textPage, 0, count, text);
+    var textList = String.fromCharCodes(text.cast<Uint16>().asTypedList(count));
+    print("==============================${textList}");
+
+    List<PdfTextBox> pdfTextBox = [];
+    if (index.isEmpty) {
+      for (var i = 0; i < count; i++) {
+        pdfium.FPDFText_GetCharBox(textPage, i, left, right, bottom, top);
+        pdfTextBox.add(PdfTextBox(
+            left[0], right[0], height - bottom[0], height - top[0],
+            text: textList[i])); // convert page coordinate
+      }
+    } else {
+      for (var i in index) {
+        pdfium.FPDFText_GetCharBox(textPage, i, left, right, bottom, top);
+        pdfTextBox.add(PdfTextBox(left[0], right[0], height - bottom[0],
+            height - top[0])); // convert page coordinate
+      }
+    }
+
+    return pdfTextBox;
   }
 }
 
 class PdfTextBox {
   @override
   String toString() {
-    return "PdfTextBox[left:$left,rigth:$right,bottom:$bottom,top:$top]";
+    return "PdfTextBox[text:$text,left:$left,rigth:$right,bottom:$bottom,top:$top,width:$width,height:$height]";
   }
 
-  PdfTextBox(
-    this._left,
-    this._right,
-    this._bottom,
-    this._top,
-  );
+  PdfTextBox(this._left, this._right, this._bottom, this._top,
+      {this.text = ''});
   static double scale = 1;
+  String text;
   double _left, _right, _bottom, _top;
   double get left => _left * scale;
   double get right => _right * scale;

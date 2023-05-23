@@ -25,8 +25,9 @@ class PdfPageStateful extends StatefulWidget {
 }
 
 class PdfPageStatefulState extends State<PdfPageStateful> {
-  Image? _image;
-  Image? _cacheImage;
+  Widget? _image;
+  Widget? _cacheImage;
+
   Future<void> FetchPdf() async {
     print("start fetch");
     //_image =
@@ -62,11 +63,15 @@ class PdfPageStatefulState extends State<PdfPageStateful> {
   void deactivate() async {
     // TODO: implement deactivate
     print('page deactive');
+    scheduleMicrotask(() {
+      widget.simplePdfRender.cancelPdfRender(widget.index, widget.scale);
+    });
+
     final cancel = CancelableOperation.fromFuture(FetchPdf(),
         onCancel: () => 'Future has been canceled');
     cancel.cancel();
     if (cancel.isCanceled) {
-      print('page Disposed');
+      print('page deactive');
     }
     super.deactivate();
   }
@@ -146,7 +151,6 @@ class Scale {
     _pageScale = ValueNotifier<double>(pageScale);
     _pageScale.addListener(() {
       _showToast();
-      PdfTextBox.scale = value;
     });
     _fToast = FToast();
     _fToast.init(context);
@@ -272,6 +276,7 @@ class ScrollControllerTestRouteState extends State<ScrollControllerTestRoute> {
               onPressed: () {
                 setState(() {
                   scale.pageScale = scale.pageScale + 0.2;
+                  PdfTextBox.scale = scale.value;
                 });
               },
               icon: const Icon(Icons.add)),
@@ -282,6 +287,7 @@ class ScrollControllerTestRouteState extends State<ScrollControllerTestRoute> {
                       setState(() {
                         if (scale.pageScale - 0.2 > 0.2) {
                           scale.pageScale = scale.pageScale - 0.2;
+                          PdfTextBox.scale = scale.value;
                         }
                       });
                     },
@@ -292,6 +298,7 @@ class ScrollControllerTestRouteState extends State<ScrollControllerTestRoute> {
                   scale.pageScale = 1.0;
                   scale.basicScale = scale.basicScale =
                       MediaQuery.of(context).size.width / pageInfo!.last.width;
+                  PdfTextBox.scale = scale.value;
                 });
               },
               icon: const Icon(Icons.fit_screen)),
@@ -309,19 +316,18 @@ class ScrollControllerTestRouteState extends State<ScrollControllerTestRoute> {
               itemBuilder: (context) => [
                     PopupMenuItem(
                         child: IconButton(
-                      onPressed: () => {
-                        for (int i = 0; i < 40; i++)
-                          {
-                            _simplePdfRender!
-                                .getPdfTextBox(0, i)
-                                .first
-                                .then((value) {
-                              setState(() {
-                                PdfTextBox.scale = scale.value;
-                                pdfTextBoxList!.first.add(value);
+                      onPressed: () {
+                        for (int i = 0; i < 6; i++) {
+                          _simplePdfRender!
+                              .getPdfTextBoxs(i, [])
+                              .first
+                              .then((value) {
+                                setState(() {
+                                  pdfTextBoxList![i] = value;
+                                });
                               });
-                            })
-                          }
+                          PdfTextBox.scale = scale.value;
+                        }
                       },
                       icon: const Icon(Icons.abc),
                     ))
@@ -379,54 +385,58 @@ class ScrollControllerTestRouteState extends State<ScrollControllerTestRoute> {
                                               ),
                                               pdfTextBoxList == null
                                                   ? const Center()
-                                                  : FittedBox(
-                                                      child: SizedBox(
-                                                        width: pageInfo![index]
-                                                                .width *
-                                                            scale.value,
-                                                        height: pageInfo![index]
-                                                                .height *
-                                                            scale.value,
-                                                        child:
-                                                            CustomMultiChildLayout(
-                                                          delegate:
-                                                              MyMultiChildLayoutDelegate(
-                                                                  pdfTextBoxList![
-                                                                      index]),
-                                                          children: <Widget>[
-                                                            for (var box
-                                                                in pdfTextBoxList![
-                                                                    index])
-                                                              LayoutId(
-                                                                  id: box,
-                                                                  child:
-                                                                      MySelectableAdapter(
-                                                                    child: SizedBox(
-                                                                        height: box
-                                                                            .height,
-                                                                        width: box
-                                                                            .width),
-                                                                    widgetText:
-                                                                        'aaa',
-                                                                  ))
-                                                          ],
+                                                  : RepaintBoundary(
+                                                      child: FittedBox(
+                                                        child: SizedBox(
+                                                          width:
+                                                              pageInfo![index]
+                                                                      .width *
+                                                                  scale.value,
+                                                          height:
+                                                              pageInfo![index]
+                                                                      .height *
+                                                                  scale.value,
+                                                          child:
+                                                              CustomMultiChildLayout(
+                                                            delegate:
+                                                                MyMultiChildLayoutDelegate(
+                                                                    pdfTextBoxList![
+                                                                        index]),
+                                                            children: <Widget>[
+                                                              for (var box
+                                                                  in pdfTextBoxList![
+                                                                      index])
+                                                                LayoutId(
+                                                                    id: box,
+                                                                    child:
+                                                                        MySelectableAdapter(
+                                                                      child: SizedBox(
+                                                                          height: box
+                                                                              .height,
+                                                                          width:
+                                                                              box.width),
+                                                                      widgetText:
+                                                                          box.text,
+                                                                    ))
+                                                            ],
+                                                          ),
                                                         ),
                                                       ),
                                                     ),
-                                              pdfTextBoxList == null
-                                                  ? const Center()
-                                                  : CustomPaint(
-                                                      painter: RectPainter(
-                                                          pdfTextBoxList![
-                                                              index]),
-                                                      size: Size(
-                                                          pageInfo![index]
-                                                                  .width *
-                                                              scale.value,
-                                                          pageInfo![index]
-                                                                  .height *
-                                                              scale.value),
-                                                    )
+                                              // pdfTextBoxList == null
+                                              //     ? const Center()
+                                              //     : CustomPaint(
+                                              //         painter: RectPainter(
+                                              //             pdfTextBoxList![
+                                              //                 index]),
+                                              //         size: Size(
+                                              //             pageInfo![index]
+                                              //                     .width *
+                                              //                 scale.value,
+                                              //             pageInfo![index]
+                                              //                     .height *
+                                              //                 scale.value),
+                                              //       )
                                             ])),
                                       ));
                                     }),
@@ -483,8 +493,7 @@ class MyMultiChildLayoutDelegate extends MultiChildLayoutDelegate {
   @override
   void performLayout(ui.Size size) {
     for (var box in boxs) {
-      print("${box.width.toString()}jjjjjjjjjjjjjjjj");
-      positionChild(box, Offset(box.dx, box.dy));
+      positionChild(box, Offset(box.left, box.top));
       layoutChild(box, BoxConstraints.tight(Size(box.width, box.height)));
     }
   }
@@ -509,16 +518,16 @@ class RectPainter extends CustomPainter {
       final paint = Paint()
         ..color = const ui.Color.fromARGB(119, 255, 184, 77)
         ..style = PaintingStyle.fill;
-
+      // print(textBox.toString());
       canvas.drawRect(
-          Rect.fromCenter(
-              center: Offset(textBox.dx, textBox.dy),
-              width: textBox.width.roundToDouble(),
-              height: textBox.height.roundToDouble()),
+          // Rect.fromCenter(
+          //     center: Offset(textBox.dx, textBox.dy),
+          //     width: textBox.width.roundToDouble(),
+          //     height: textBox.height.roundToDouble()),
+          // paint);
+          Rect.fromLTRB(
+              textBox.left, textBox.top, textBox.right, textBox.bottom),
           paint);
-      // Rect.fromLTRB(
-      //     textBox.left, textBox.top, textBox.right, textBox.bottom),
-      // paint);
     }
     // TODO: implement paint
   }
