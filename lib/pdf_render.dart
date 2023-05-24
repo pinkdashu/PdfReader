@@ -29,6 +29,12 @@ enum _Codes {
 
 class _Command {
   const _Command(this.code, {this.arg0, this.arg1});
+  @override
+  String toString() {
+    // TODO: implement toString
+    return super.toString();
+  }
+
   final _Codes code;
   final Object? arg0;
   final Object? arg1;
@@ -91,6 +97,7 @@ class SimplePdfRender {
         _resultStreamPtr.removeLast().close();
         getImagePtrCommandMap.remove(getImagePtrCommandQueue.removeLast());
         if (getImagePtrCommandQueue.isNotEmpty) {
+          print("runnnnnnnnnnn" + getImagePtrCommandQueue.last.arg0.toString());
           _sendPort.send(getImagePtrCommandQueue.last);
         }
         break;
@@ -183,12 +190,15 @@ class SimplePdfRender {
 
   void cancelPdfRender(int page, double scale) {
     if (getImagePtrCommandQueue.contains(getImagePtrCommandMap[page])) {
-      print('vvvvvvvvvv');
+      print(
+          'page deactive cancelPdfRender page $page,${getImagePtrCommandQueue.length}');
       resultStreamPtrMap[getImagePtrCommandMap[page]]!
         ..add({})
         ..close();
       _resultStreamPtr.remove(resultStreamPtrMap[getImagePtrCommandMap[page]]);
-      getImagePtrCommandQueue.remove(getImagePtrCommandMap[page]);
+
+      print(
+          "page deactive cancelPdfRender${getImagePtrCommandQueue.remove(getImagePtrCommandMap[page]!).toString()}");
     }
   }
 }

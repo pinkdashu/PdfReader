@@ -60,12 +60,11 @@ class PdfPageStatefulState extends State<PdfPageStateful> {
   }
 
   @override
-  void deactivate() async {
+  void deactivate() {
     // TODO: implement deactivate
-    print('page deactive');
-    scheduleMicrotask(() {
-      widget.simplePdfRender.cancelPdfRender(widget.index, widget.scale);
-    });
+    print('page deactive${widget.index}');
+
+    widget.simplePdfRender.cancelPdfRender(widget.index, widget.scale);
 
     final cancel = CancelableOperation.fromFuture(FetchPdf(),
         onCancel: () => 'Future has been canceled');
