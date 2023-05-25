@@ -35,12 +35,6 @@ class SimplePdfRender {
 
   final Queue<StreamController<widget.Image>> _resultStream =
       Queue<StreamController<widget.Image>>();
-  final Queue<StreamController<Map>> _resultStreamPtr =
-      Queue<StreamController<Map>>();
-  final Queue<StreamController<PdfTextBox>> _resultPdfTextBox =
-      Queue<StreamController<PdfTextBox>>();
-
-  late StreamController<List<ui.Size>> _resultPageSize;
 
   static Future<SimplePdfRender> open(String path) async {
     final ReceivePort receivePort = ReceivePort();
@@ -56,8 +50,12 @@ class SimplePdfRender {
     return result;
   }
 
+  late _Command _command;
+  late final Queue<_Command> _commandQueue = Queue<_Command>();
+
   void _handleCommand(_Command command) {
-    print("handleCommand  ${command.code}");
+    _command = command;
+    print("handleCommand  ${command.code} queue lenth ${_completers.length}");
     switch (command.code) {
       case _Codes.init:
         _sendPort = command.arg0 as SendPort;
@@ -74,19 +72,13 @@ class SimplePdfRender {
         _resultStream.removeLast().close();
         break;
       case _Codes.imagePtr:
-        print("queue length:${_resultStreamPtr.length}");
-        _resultStreamPtr.last.add(command.arg0 as Map);
-        _resultStreamPtr.removeLast().close();
+        _completers.removeLast().complete();
         break;
       case _Codes.pageSize:
-        _resultPageSize
-          ..add(command.arg0 as List<ui.Size>)
-          ..close();
+        _completers.removeLast().complete();
         break;
       case _Codes.pageTextBox:
-        _resultPdfTextBox
-          ..last.add(command.arg0 as PdfTextBox)
-          ..removeLast().close();
+        _completers.removeLast().complete();
         break;
       default:
     }
@@ -101,16 +93,17 @@ class SimplePdfRender {
     return resultStream.stream;
   }
 
-  Stream<Map> getImagePtr(int page, double scale) {
+  Future<Map> getImagePtr(int page, double scale) async {
     print("start get Ptr");
-    StreamController<Map> resultStreamPtr = StreamController<Map>();
-    _resultStreamPtr.addFirst(resultStreamPtr);
+    Completer<void> completer = Completer<void>();
+    _completers.addFirst(completer);
     _sendPort.send(_Command(_Codes.imagePtr, arg0: page, arg1: scale));
-    return resultStreamPtr.stream;
+    await completer.future;
+    return _command.arg0 as Map;
   }
 
   Future<widget.Image> getImagebyPtr(int page, double scale) async {
-    var addr = await getImagePtr(page, scale).first;
+    var addr = await getImagePtr(page, scale);
     var imagePtr = Pointer<Uint8>.fromAddress(addr['address']);
     var image = imagePtr.asTypedList(addr['width'] * addr['height'] * 4);
     var bmp = Rgba4444ToBmp(image, addr['width'] as int, addr['height'] as int);
@@ -123,18 +116,28 @@ class SimplePdfRender {
     );
   }
 
-  Stream<List<ui.Size>> getpageSize() {
-    _resultPageSize = StreamController<List<ui.Size>>();
-    _sendPort.send(const _Command(_Codes.pageSize));
-    return _resultPageSize.stream;
+  Future<Uint8List> getMemoryImagebyPtr(int page, double scale) async {
+    var addr = await getImagePtr(page, scale);
+    var imagePtr = Pointer<Uint8>.fromAddress(addr['address']);
+    var image = imagePtr.asTypedList(addr['width'] * addr['height'] * 4);
+    var bmp = Rgba4444ToBmp(image, addr['width'] as int, addr['height'] as int);
+    return bmp;
   }
 
-  Stream<PdfTextBox> getPdfTextBox(int page, int index) {
-    StreamController<PdfTextBox> resultPdfTextBox =
-        StreamController<PdfTextBox>();
-    _resultPdfTextBox.add(resultPdfTextBox);
+  Future<List<ui.Size>> getpageSize() async {
+    Completer<void> completer = Completer<void>();
+    _completers.addFirst(completer);
+    _sendPort.send(const _Command(_Codes.pageSize));
+    await completer.future;
+    return _command.arg0 as List<ui.Size>;
+  }
+
+  Future<PdfTextBox> getPdfTextBox(int page, int index) async {
+    Completer<void> completer = Completer<void>();
+    _completers.addFirst(completer);
     _sendPort.send(_Command(_Codes.pageTextBox, arg0: page, arg1: index));
-    return resultPdfTextBox.stream;
+    await completer.future;
+    return _command.arg0 as PdfTextBox;
   }
 }
 

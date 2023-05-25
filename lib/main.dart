@@ -25,27 +25,23 @@ class PdfPageStateful extends StatefulWidget {
 }
 
 class PdfPageStatefulState extends State<PdfPageStateful> {
-  Image? _image;
-  Image? _cacheImage;
+  Uint8List? _imageCache;
   Future<void> FetchPdf() async {
     print("start fetch");
-    //_image =
-    //    await widget.simplePdfRender.getImage(widget.index, widget.scale).first;
-    _image = await widget.simplePdfRender
-        .getImagebyPtr(widget.index, widget.scale * 1.5); // more clearly
-    print(_image.toString());
+    _imageCache = await widget.simplePdfRender
+        .getMemoryImagebyPtr(widget.index, widget.scale * 1.1); // more clearly
     if (mounted) {
-      setState(() {
-        _cacheImage = _image;
-        print(_image.toString());
-      });
+      setState(() {});
     }
   }
 
   @override
   void didUpdateWidget(oldWidget) {
     super.didUpdateWidget(oldWidget);
-    FetchPdf();
+    if (oldWidget.scale != widget.scale) {
+      print("dddddddddddddddddddddddddd");
+      FetchPdf();
+    }
   }
 
   @override
@@ -82,9 +78,15 @@ class PdfPageStatefulState extends State<PdfPageStateful> {
   Widget build(BuildContext context) {
     print('BUILD');
     return Center(
-      child: _cacheImage == null
+      child: _imageCache == null
           ? const CircularProgressIndicator()
-          : _cacheImage!,
+          : Image.memory(
+              _imageCache!,
+              gaplessPlayback: true,
+              width: double.infinity,
+              height: double.infinity,
+              fit: BoxFit.fill,
+            ),
     );
   }
 }
@@ -218,7 +220,7 @@ class ScrollControllerTestRouteState extends State<ScrollControllerTestRoute> {
     }
     SimplePdfRender.open(widget.path!).then((value) {
       _simplePdfRender = value;
-      _simplePdfRender!.getpageSize().first.then((value) => {
+      _simplePdfRender!.getpageSize().then((value) => {
             setState(() {
               // get all pages size and max size
               pageInfo = value;
@@ -312,10 +314,7 @@ class ScrollControllerTestRouteState extends State<ScrollControllerTestRoute> {
                       onPressed: () => {
                         for (int i = 0; i < 40; i++)
                           {
-                            _simplePdfRender!
-                                .getPdfTextBox(0, i)
-                                .first
-                                .then((value) {
+                            _simplePdfRender!.getPdfTextBox(0, i).then((value) {
                               setState(() {
                                 PdfTextBox.scale = scale.value;
                                 pdfTextBoxList!.first.add(value);
@@ -413,20 +412,20 @@ class ScrollControllerTestRouteState extends State<ScrollControllerTestRoute> {
                                                         ),
                                                       ),
                                                     ),
-                                              pdfTextBoxList == null
-                                                  ? const Center()
-                                                  : CustomPaint(
-                                                      painter: RectPainter(
-                                                          pdfTextBoxList![
-                                                              index]),
-                                                      size: Size(
-                                                          pageInfo![index]
-                                                                  .width *
-                                                              scale.value,
-                                                          pageInfo![index]
-                                                                  .height *
-                                                              scale.value),
-                                                    )
+                                              // pdfTextBoxList == null
+                                              //     ? const Center()
+                                              //     : CustomPaint(
+                                              //         painter: RectPainter(
+                                              //             pdfTextBoxList![
+                                              //                 index]),
+                                              //         size: Size(
+                                              //             pageInfo![index]
+                                              //                     .width *
+                                              //                 scale.value,
+                                              //             pageInfo![index]
+                                              //                     .height *
+                                              //                 scale.value),
+                                              //       )
                                             ])),
                                       ));
                                     }),
@@ -526,7 +525,7 @@ class RectPainter extends CustomPainter {
   @override
   bool shouldRepaint(covariant RectPainter oldDelegate) {
     // TODO: implement shouldRepaint
-    return listEquals(oldDelegate.textBoxList, textBoxList);
+    return false;
   }
 }
 
