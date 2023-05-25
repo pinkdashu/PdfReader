@@ -15,6 +15,41 @@ import 'package:path/path.dart' as path;
 import 'package:pdfium_bindings/pdfium_bindings.dart';
 import 'rgba_image.dart';
 
+main() async {
+  SimplePdfRender pdfRender = await SimplePdfRender.open('test.pdf');
+  pdfRender.getMemoryImagebyPtr(1, 4);
+  pdfRender.getMemoryImagebyPtr(2, 4);
+  pdfRender.getMemoryImagebyPtr(3, 4);
+  pdfRender.getMemoryImagebyPtr(4, 4);
+  pdfRender.getMemoryImagebyPtr(5, 4);
+  pdfRender.getMemoryImagebyPtr(1, 4);
+  pdfRender.getMemoryImagebyPtr(2, 4);
+  pdfRender.getMemoryImagebyPtr(3, 4);
+  pdfRender.getMemoryImagebyPtr(4, 4);
+  pdfRender.getMemoryImagebyPtr(5, 4);
+  pdfRender.getMemoryImagebyPtr(1, 4);
+  pdfRender.getMemoryImagebyPtr(2, 4);
+  pdfRender.getMemoryImagebyPtr(3, 4);
+  pdfRender.getMemoryImagebyPtr(4, 4);
+  pdfRender.getMemoryImagebyPtr(5, 4);
+  pdfRender.getMemoryImagebyPtr(1, 4);
+  pdfRender.getMemoryImagebyPtr(2, 4);
+  pdfRender.getMemoryImagebyPtr(3, 4);
+  pdfRender.getMemoryImagebyPtr(4, 4);
+  pdfRender.getMemoryImagebyPtr(5, 4);
+  pdfRender.getMemoryImagebyPtr(1, 4);
+  pdfRender.getMemoryImagebyPtr(2, 4);
+  pdfRender.getMemoryImagebyPtr(3, 4);
+  pdfRender.getMemoryImagebyPtr(4, 4);
+  pdfRender.getMemoryImagebyPtr(5, 4);
+
+  pdfRender.removeTask(1);
+  pdfRender.removeTask(2);
+  pdfRender.removeTask(3);
+  pdfRender.removeTask(4);
+  // pdfRender.removeTask(5);
+}
+
 enum _Codes { init, image, ack, pageSize, imagePtr, pageTextBox }
 
 class _Command {
@@ -24,12 +59,78 @@ class _Command {
   final Object? arg1;
 }
 
+typedef TaskCallback = void Function(bool success, dynamic result);
+typedef TaskFutureFuc = Future Function();
+
+///队列任务，先进先出，一个个执行
+class TaskQueueUtils {
+  bool _isTaskRunning = false;
+  Queue<TaskItem> _taskList = Queue<TaskItem>();
+
+  bool get isTaskRunning => _isTaskRunning;
+
+  Future addTask(TaskFutureFuc futureFunc, {int pageIndex = -1}) {
+    Completer completer = Completer();
+    TaskItem taskItem = TaskItem(futureFunc, (success, result) {
+      scheduleMicrotask(() {
+        if (success) {
+          completer.complete(result);
+        } else {
+          completer.completeError(result);
+        }
+        _taskList.removeFirst();
+        _isTaskRunning = false;
+        //递归任务
+        _doTask();
+      });
+    }, pageIndex);
+    _taskList.addLast(taskItem);
+    _doTask();
+    return completer.future;
+  }
+
+  Future<void> removeTaskAtPage(int index) {
+    print('remove $index');
+    var completer = Completer();
+    _taskList.removeWhere((element) => element.pageIndex == index);
+    completer.complete();
+    return completer.future;
+  }
+
+  Future<void> _doTask() async {
+    if (_taskList.isEmpty) return;
+    if (_isTaskRunning) return;
+    print("task length${_taskList.length}");
+    //获取先进入的任务
+    TaskItem task = _taskList.first;
+    _isTaskRunning = true;
+    try {
+      //执行任务
+      var result = await task.futureFun();
+      //完成任务
+      task.callback(true, result);
+    } catch (_) {
+      task.callback(false, _.toString());
+    }
+  }
+}
+
+///任务封装
+class TaskItem {
+  final TaskFutureFuc futureFun;
+  final TaskCallback callback;
+  int pageIndex = -1;
+
+  TaskItem(this.futureFun, this.callback, this.pageIndex);
+}
+
 class SimplePdfRender {
   SimplePdfRender._(this._isolate, this._path);
 
   final Isolate _isolate;
   final String _path;
   late final SendPort _sendPort;
+  TaskQueueUtils taskQueueUtils = TaskQueueUtils();
 
   final Queue<Completer<void>> _completers = Queue<Completer<void>>();
 
@@ -51,11 +152,10 @@ class SimplePdfRender {
   }
 
   late _Command _command;
-  late final Queue<_Command> _commandQueue = Queue<_Command>();
 
   void _handleCommand(_Command command) {
     _command = command;
-    print("handleCommand  ${command.code} queue lenth ${_completers.length}");
+    print("handleCommand  ${command.code}");
     switch (command.code) {
       case _Codes.init:
         _sendPort = command.arg0 as SendPort;
@@ -84,6 +184,10 @@ class SimplePdfRender {
     }
   }
 
+  void removeTask(int page) {
+    taskQueueUtils.removeTaskAtPage(page);
+  }
+
   Stream<widget.Image> getImage(int page, double scale) {
     //print("start get image");
     StreamController<widget.Image> resultStream =
@@ -93,8 +197,12 @@ class SimplePdfRender {
     return resultStream.stream;
   }
 
-  Future<Map> getImagePtr(int page, double scale) async {
-    print("start get Ptr");
+  Future<Map?> getImagePtr(int page, double scale) async {
+    return await taskQueueUtils.addTask(() => _getImagePtr(page, scale),
+        pageIndex: page) as Map;
+  }
+
+  Future<Map> _getImagePtr(int page, double scale) async {
     Completer<void> completer = Completer<void>();
     _completers.addFirst(completer);
     _sendPort.send(_Command(_Codes.imagePtr, arg0: page, arg1: scale));
@@ -102,22 +210,12 @@ class SimplePdfRender {
     return _command.arg0 as Map;
   }
 
-  Future<widget.Image> getImagebyPtr(int page, double scale) async {
-    var addr = await getImagePtr(page, scale);
-    var imagePtr = Pointer<Uint8>.fromAddress(addr['address']);
-    var image = imagePtr.asTypedList(addr['width'] * addr['height'] * 4);
-    var bmp = Rgba4444ToBmp(image, addr['width'] as int, addr['height'] as int);
-    return Image.memory(
-      bmp, width: double.infinity,
-      height: double.infinity,
-      gaplessPlayback:
-          true, // prevent image flash while changing https://stackoverflow.com/questions/60125831/white-flash-when-image-is-repainted-flutter
-      fit: widget.BoxFit.fill,
-    );
-  }
-
-  Future<Uint8List> getMemoryImagebyPtr(int page, double scale) async {
-    var addr = await getImagePtr(page, scale);
+  Future<Uint8List?> getMemoryImagebyPtr(int page, double scale) async {
+    print("start get Ptr ${page}");
+    Map? addr = await getImagePtr(page, scale);
+    if (addr == null) {
+      return null;
+    }
     var imagePtr = Pointer<Uint8>.fromAddress(addr['address']);
     var image = imagePtr.asTypedList(addr['width'] * addr['height'] * 4);
     var bmp = Rgba4444ToBmp(image, addr['width'] as int, addr['height'] as int);

@@ -29,7 +29,7 @@ class PdfPageStatefulState extends State<PdfPageStateful> {
   Future<void> FetchPdf() async {
     print("start fetch");
     _imageCache = await widget.simplePdfRender
-        .getMemoryImagebyPtr(widget.index, widget.scale * 1.1); // more clearly
+        .getMemoryImagebyPtr(widget.index, widget.scale * 1.2); // more clearly
     if (mounted) {
       setState(() {});
     }
@@ -47,10 +47,11 @@ class PdfPageStatefulState extends State<PdfPageStateful> {
   @override
   void dispose() {
     // TODO: implement dispose
-
-    if (CancelableOperation.fromFuture(FetchPdf()).isCanceled) {
-      print('page Disposed');
-    }
+    print('page Disposed ${widget.index.toString()}');
+    widget.simplePdfRender.removeTask(widget.index);
+    // if (CancelableOperation.fromFuture(FetchPdf()).cancel()) {
+    //   print('page Disposed');
+    // }
     super.dispose();
   }
 
@@ -58,20 +59,28 @@ class PdfPageStatefulState extends State<PdfPageStateful> {
   void deactivate() async {
     // TODO: implement deactivate
     print('page deactive');
-    final cancel = CancelableOperation.fromFuture(FetchPdf(),
-        onCancel: () => 'Future has been canceled');
-    cancel.cancel();
-    if (cancel.isCanceled) {
-      print('page Disposed');
-    }
+
+    // final cancel = CancelableOperation.fromFuture(FetchPdf(),
+    //     onCancel: () => 'Future has been canceled');
+    // cancel.cancel();
+    // if (cancel.isCanceled) {
+    //   print('page Disposed');
+    // }
     super.deactivate();
+  }
+
+  @override
+  void didChangeDependencies() {
+    // TODO: implement didChangeDependencies
+    FetchPdf();
+    super.didChangeDependencies();
   }
 
   @override
   void initState() {
     super.initState();
     print("page create");
-    FetchPdf();
+    //FetchPdf();
   }
 
   @override
