@@ -72,32 +72,35 @@ class TaskQueueUtils {
   Future addTask(TaskFutureFuc futureFunc, {int pageIndex = -1}) {
     Completer completer = Completer();
     TaskItem taskItem = TaskItem(futureFunc, (success, result) {
-      scheduleMicrotask(() {
-        if (success) {
-          completer.complete(result);
-        } else {
-          completer.completeError(result);
-        }
-        _taskList.removeFirst();
-        _isTaskRunning = false;
-        //递归任务
-        _doTask();
-      });
+      if (success) {
+        completer.complete(result);
+      } else {
+        completer.completeError(result);
+      }
+      _taskList.removeFirst();
+      _isTaskRunning = false;
+      //递归任务
+      _doTask();
     }, pageIndex);
     _taskList.addLast(taskItem);
     _doTask();
     return completer.future;
   }
 
-  Future<void> removeTaskAtPage(int index) {
-    print('remove $index');
-    var completer = Completer();
-    _taskList.removeWhere((element) => element.pageIndex == index);
-    completer.complete();
-    return completer.future;
+  List<int> removePages = [];
+  void _removeTaskAtPage() {
+    for (var page in removePages) {
+      _taskList.removeWhere((element) => element.pageIndex == page);
+    }
+    removePages = [];
+  }
+
+  void removeTaskAtPage(int index) {
+    removePages.add(index);
   }
 
   Future<void> _doTask() async {
+    _removeTaskAtPage();
     if (_taskList.isEmpty) return;
     if (_isTaskRunning) return;
     print("task length${_taskList.length}");
@@ -216,6 +219,7 @@ class SimplePdfRender {
     if (addr == null) {
       return null;
     }
+    await Future.delayed(Duration(microseconds: 299));
     var imagePtr = Pointer<Uint8>.fromAddress(addr['address']);
     var image = imagePtr.asTypedList(addr['width'] * addr['height'] * 4);
     var bmp = Rgba4444ToBmp(image, addr['width'] as int, addr['height'] as int);
