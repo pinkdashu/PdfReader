@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:ffi';
 
 import 'dart:ui' as ui;
 import 'package:flutter/foundation.dart';
@@ -29,8 +30,6 @@ class PdfPageStatefulState extends State<PdfPageStateful> {
   Image? _cacheImage;
   Future<void> FetchPdf() async {
     print("start fetch");
-    //_image =
-    //    await widget.simplePdfRender.getImage(widget.index, widget.scale).first;
     _image = await widget.simplePdfRender
         .getImagebyPtr(widget.index, widget.scale * 1.5); // more clearly
     print(_image.toString());
@@ -41,6 +40,8 @@ class PdfPageStatefulState extends State<PdfPageStateful> {
       });
     }
   }
+
+  CancelableOperation<void>? myCancelableFetchPdf;
 
   @override
   void didUpdateWidget(oldWidget) {
@@ -59,15 +60,14 @@ class PdfPageStatefulState extends State<PdfPageStateful> {
   }
 
   @override
-  void deactivate() async {
+  void deactivate() {
     // TODO: implement deactivate
-    print('page deactive');
-    final cancel = CancelableOperation.fromFuture(FetchPdf(),
-        onCancel: () => 'Future has been canceled');
-    cancel.cancel();
-    if (cancel.isCanceled) {
-      print('page Disposed');
-    }
+    print('page deactive' + widget.index.toString());
+    widget.simplePdfRender.removeTask(widget.index);
+    // if (myCancelableFetchPdf != null) {
+    //   print('page deactive cancel');
+    //   myCancelableFetchPdf!.cancel();
+    // }
     super.deactivate();
   }
 
@@ -75,7 +75,11 @@ class PdfPageStatefulState extends State<PdfPageStateful> {
   void initState() {
     super.initState();
     print("page create");
-    FetchPdf();
+    myCancelableFetchPdf = CancelableOperation.fromFuture(FetchPdf(),
+        onCancel: () => print('FetchPdf Canceled'));
+    myCancelableFetchPdf!.value
+        .then((value) => print('page success ${widget.index}'));
+    //FetchPdf();
   }
 
   @override
@@ -419,7 +423,7 @@ class ScrollControllerTestRouteState extends State<ScrollControllerTestRoute> {
                                                       painter: RectPainter(
                                                           pdfTextBoxList![
                                                               index]),
-                                                      size: Size(
+                                                      size: ui.Size(
                                                           pageInfo![index]
                                                                   .width *
                                                               scale.value,
@@ -485,7 +489,7 @@ class MyMultiChildLayoutDelegate extends MultiChildLayoutDelegate {
     for (var box in boxs) {
       print("${box.width.toString()}jjjjjjjjjjjjjjjj");
       positionChild(box, Offset(box.dx, box.dy));
-      layoutChild(box, BoxConstraints.tight(Size(box.width, box.height)));
+      layoutChild(box, BoxConstraints.tight(ui.Size(box.width, box.height)));
     }
   }
 

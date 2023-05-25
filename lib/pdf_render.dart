@@ -10,12 +10,165 @@ import 'package:flutter/widgets.dart' as widget;
 import 'package:ffi/ffi.dart';
 import 'package:flutter/services.dart';
 import 'package:image/image.dart' as img;
-
+import 'package:async/async.dart';
 import 'package:path/path.dart' as path;
 import 'package:pdfium_bindings/pdfium_bindings.dart';
 import 'rgba_image.dart';
+import 'dart:async';
 
-enum _Codes { init, image, ack, pageSize, imagePtr, pageTextBox }
+void main() async {
+  SimplePdfRender? s;
+  await SimplePdfRender.open('test.pdf').then((value) => s = value);
+  s!.getImagePtr(1, 4);
+  s!.getImagePtr(2, 4);
+  s!.getImagePtr(1, 4);
+  s!.getImagePtr(2, 4);
+  s!.getImagePtr(1, 4);
+  s!.getImagePtr(2, 4);
+  s!.getImagePtr(1, 4);
+  s!.getImagePtr(2, 4);
+  s!.getImagePtr(1, 4);
+  s!.getImagePtr(2, 4);
+  s!.getImagePtr(1, 4);
+  s!.getImagePtr(1, 4);
+  s!.getImagePtr(2, 4);
+  s!.getImagePtr(1, 4);
+  s!.getImagePtr(2, 4);
+  s!.getImagePtr(1, 4);
+  s!.getImagePtr(2, 4);
+  s!.getImagePtr(1, 4);
+  s!.getImagePtr(2, 4);
+  s!.getImagePtr(1, 4);
+  s!.getImagePtr(2, 4);
+  s!.getImagePtr(1, 4);
+  s!.getImagePtr(1, 4);
+  s!.getImagePtr(2, 4);
+  s!.getImagePtr(1, 4);
+  s!.getImagePtr(2, 4);
+  s!.getImagePtr(1, 4);
+  s!.getImagePtr(2, 4);
+  s!.getImagePtr(1, 4);
+  s!.getImagePtr(2, 4);
+  s!.getImagePtr(1, 4);
+  s!.getImagePtr(2, 4);
+  s!.removeTask(1);
+  s!.removeTask(2);
+  s!.getImagePtr(1, 4);
+}
+
+typedef TaskCallback = void Function(bool success, dynamic result);
+typedef TaskFutureFuc = Future Function();
+
+///队列任务，先进先出，一个个执行
+class TaskQueueUtils {
+  bool _isTaskRunning = false;
+  List<TaskItem> _taskList = [];
+
+  bool get isTaskRunning => _isTaskRunning;
+
+  Future addTask(TaskFutureFuc futureFunc, {dynamic param}) {
+    Completer completer = Completer();
+    TaskItem taskItem = TaskItem(
+      futureFunc,
+      (success, result) {
+        if (success) {
+          completer.complete(result);
+        } else {
+          completer.completeError(result);
+        }
+        _taskList.removeAt(0);
+        _isTaskRunning = false;
+        //递归任务
+        _doTask();
+      },
+    );
+    _taskList.add(taskItem);
+    _doTask();
+    return completer.future;
+  }
+
+  Future deleteTask(int index) {
+    Completer completer = Completer();
+    _taskList.removeAt(index);
+    return completer.future;
+  }
+
+  Future<void> _doTask() async {
+    if (_isTaskRunning) return;
+    if (_taskList.isEmpty) return;
+
+    //获取先进入的任务
+    TaskItem task = _taskList[0];
+    _isTaskRunning = true;
+    try {
+      //执行任务
+      var result = await task.futureFun();
+      //完成任务
+      task.callback(true, result);
+    } catch (_) {
+      task.callback(false, _.toString());
+    }
+  }
+}
+
+///任务封装
+class TaskItem {
+  final TaskFutureFuc futureFun;
+  final TaskCallback callback;
+
+  const TaskItem(
+    this.futureFun,
+    this.callback,
+  );
+}
+
+// main() async {
+//   Future task1() {
+//     return Future(() async {
+//       print("start task1");
+//       await Future.delayed(Duration(seconds: 3));
+//       return "end task1";
+//     });
+//   }
+
+//   Future task2() {
+//     return Future(() async {
+//       print("start task2");
+//       await Future.delayed(Duration(seconds: 1));
+//       return "end task2";
+//     });
+//   }
+
+//   TaskQueueUtils queueUtils = TaskQueueUtils();
+//   queueUtils.addTask(task1).then((result) {
+//     print(result);
+//     return Future.value(result);
+//   });
+
+//   queueUtils.addTask(task2).then((result) {
+//     print(result);
+//     return Future.value(result);
+//   });
+
+//   queueUtils.addTask(task1).then((result) {
+//     print(result);
+//     return Future.value(result);
+//   });
+//   queueUtils.deleteTask(0);
+//   queueUtils.deleteTask(1);
+//   print("object");
+// }
+
+enum _Codes {
+  init,
+  image,
+  ack,
+  pageSize,
+  imagePtr,
+  pageTextBox,
+  deleteTask,
+  sendEmpty
+}
 
 class _Command {
   const _Command(this.code, {this.arg0, this.arg1});
@@ -75,7 +228,9 @@ class SimplePdfRender {
         break;
       case _Codes.imagePtr:
         print("queue length:${_resultStreamPtr.length}");
-        _resultStreamPtr.last.add(command.arg0 as Map);
+        if (command.arg0 != null) {
+          _resultStreamPtr.last.add(command.arg0 as Map);
+        }
         _resultStreamPtr.removeLast().close();
         break;
       case _Codes.pageSize:
@@ -90,6 +245,10 @@ class SimplePdfRender {
         break;
       default:
     }
+  }
+
+  void removeTask(int page) {
+    _sendPort.send(_Command(_Codes.deleteTask, arg0: page));
   }
 
   Stream<widget.Image> getImage(int page, double scale) {
@@ -110,7 +269,10 @@ class SimplePdfRender {
   }
 
   Future<widget.Image> getImagebyPtr(int page, double scale) async {
-    var addr = await getImagePtr(page, scale).first;
+    var addr = await getImagePtr(page, scale).firstOrNull;
+    if (addr == null) {
+      return Image.memory(Uint8List(0));
+    }
     var imagePtr = Pointer<Uint8>.fromAddress(addr['address']);
     var image = imagePtr.asTypedList(addr['width'] * addr['height'] * 4);
     var bmp = Rgba4444ToBmp(image, addr['width'] as int, addr['height'] as int);
@@ -138,24 +300,94 @@ class SimplePdfRender {
   }
 }
 
+class CommandItem {
+  final _Command command;
+  final TaskCallback callback;
+
+  const CommandItem(this.command, this.callback);
+}
+
+typedef CommandFun = void Function(_Command);
+
+class CommandQueueUtil {
+  static _SimplePdfRenderServer? server;
+  static void SetSever(_SimplePdfRenderServer server) {
+    CommandQueueUtil.server = server;
+  }
+
+  bool _isRunning = false;
+  Queue<CommandItem> _commandList = Queue<CommandItem>();
+  Future<void> AddCommand(_Command command) {
+    var completer = Completer();
+    if (command.code == _Codes.deleteTask) {
+      RemoveTaskByPage(command.arg0 as int);
+    }
+    _commandList.addLast(CommandItem(command, (success, result) {
+      if (success) {
+        completer.complete();
+      } else {
+        completer.completeError(result);
+      }
+      _commandList.removeFirst();
+      _isRunning = false;
+      _doTask();
+    }));
+    _doTask();
+    return completer.future;
+  }
+
+  void RemoveTaskByPage(int page) {
+    for (var command in _commandList.where((element) =>
+        element.command.code != _Codes.init &&
+        (element.command.arg0 as int) == page)) {
+      server!._sendPort.send(_Command(_Codes.imagePtr, arg0: null));
+    }
+    _commandList.removeWhere((element) =>
+        element.command.code != _Codes.init &&
+        (element.command.arg0 as int) == page);
+  }
+
+  Future<void> _doTask() async {
+    await Future.delayed(Duration(microseconds: 100));
+    if (_isRunning) return;
+    if (_commandList.isEmpty) return;
+
+    var command = _commandList.first;
+    _isRunning = true;
+
+    try {
+      server!.__handleCommand(command.command);
+      command.callback(true, 'SCCCESS');
+    } catch (_) {
+      command.callback(false, _.toString());
+    }
+  }
+}
+
 class _SimplePdfRenderServer {
   _SimplePdfRenderServer._(this._sendPort);
   late final SendPort _sendPort;
   late final PdfRender _pdfRender;
   late final String _path;
+  CommandQueueUtil commandQueueUtil = CommandQueueUtil();
 
   static void _run(SendPort sendPort) {
     ReceivePort receivePort = ReceivePort();
     sendPort.send(_Command(_Codes.init, arg0: receivePort.sendPort));
     final _SimplePdfRenderServer server = _SimplePdfRenderServer._(sendPort);
-    receivePort.listen((Object? message) {
+    CommandQueueUtil.SetSever(server);
+    var subscription = receivePort.listen((Object? message) async {
       final _Command command = message as _Command;
       print("listened");
-      server._handleCommand(command).timeout(Duration.zero);
+      server._handleCommand(command);
     });
   }
 
   Future<void> _handleCommand(_Command command) async {
+    commandQueueUtil.AddCommand(command);
+  }
+
+  void __handleCommand(_Command command) async {
     switch (command.code) {
       case _Codes.init:
         _path = command.arg0 as String;
