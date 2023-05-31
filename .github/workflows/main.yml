@@ -142,8 +142,8 @@ jobs:
         run: |
           git config --global core.longpaths true
           flutter pub get
-          flutter pub run build_runner build --delete-conflicting-outputs
-          flutter pub run intl_utils:generate
+#          flutter pub run build_runner build --delete-conflicting-outputs
+#          flutter pub run intl_utils:generate
       # Get app version
       - name: Get app version
         id: get_version
@@ -153,7 +153,7 @@ jobs:
       # 打包 apk
       - name: Collect Apks
         if: matrix.target == 'android'
-        run: flutter build apk # run: flutter build apk --release
+        run: flutter build apk --release
 #         env:
 #           KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
 #           KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
