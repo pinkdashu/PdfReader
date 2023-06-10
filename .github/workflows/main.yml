@@ -7,7 +7,7 @@ on:
       - 'master'
       - 'build'
 env:
-  APP_NAME: 'pdfium_libs_example'
+  APP_NAME: 'PdfReader'
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref_name }}
   cancel-in-progress: true
@@ -30,7 +30,7 @@ jobs:
             flutter_version: '3.11'
             flutter_channel: 'master'
             artifact_name: release-ios
-            artifact_path: build/ios/*.ipa
+            artifact_path: build/ios/ipa/*.ipa
           - target: macos
             os: macos-12
             flutter_version: '3.11'
@@ -136,17 +136,14 @@ jobs:
 
       - name: Build resolve Swift dependencies
         if: matrix.os == 'macos-12'
-        run: 
-          cd example/
-          xcodebuild -resolvePackageDependencies -workspace ios/Runner.xcworkspace -scheme Runner -configuration Release
+        run: xcodebuild -resolvePackageDependencies -workspace ios/Runner.xcworkspace -scheme Runner -configuration Release
 
       - name: Flutter pub get
         run: |
-          cd example
           git config --global core.longpaths true
           flutter pub get
-          # flutter pub run build_runner build --delete-conflicting-outputs
-          # flutter pub run intl_utils:generate
+#          flutter pub run build_runner build --delete-conflicting-outputs
+#          flutter pub run intl_utils:generate
       # Get app version
       - name: Get app version
         id: get_version
@@ -156,8 +153,7 @@ jobs:
       # 打包 apk
       - name: Collect Apks
         if: matrix.target == 'android'
-        run: |
-          flutter build apk --release
+        run: flutter build apk --release
 #         env:
 #           KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
 #           KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
@@ -167,32 +163,26 @@ jobs:
       - name: Build ipa
         if: matrix.target == 'ios'
         run: |
-          pwd
-          # flutter precache --ios
           cd ios && pod update && pod install && cd ..
           flutter build ios --release --no-codesign
-          cd ../build/ios
-          sh ../../../scripts/thin-payload.sh iphoneos/Runner.app
+          cd ../build
           mkdir -p Payload
-          mv iphoneos/Runner.app Payload
+          mv ios/iphoneos/Runner.app Payload
           zip -9 ${{env.APP_NAME}}.ipa -r Payload
       # 打包 mac
       - name: Build mac app
         if: matrix.target == 'macos'
         run: |
-          pwd
           cd macos && pod update && pod install && cd ..
           pwd
-          flutter build macos --release --verbose
-          pwd
-          #cd ..
+          flutter build macos --release
+          cd ..
           APP_PATH=build/macos/Build/Products/Release/${{env.APP_NAME}}.app
           cp -a $APP_PATH ./build
           cd build && zip -qroy macos/Runner_${{ steps.get_version.outputs.version }}_macos.zip ${{env.APP_NAME}}.app
       - name: Build windows
         if: matrix.target == 'windows'
         run: |
-          pwd
           flutter build windows # --release
           $DestDir = "build\windows\${{env.APP_NAME}}"
           $SrcDir = "build\windows\runner\Release"
