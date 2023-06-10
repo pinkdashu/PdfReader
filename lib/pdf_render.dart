@@ -12,7 +12,8 @@ import 'package:flutter/services.dart';
 import 'package:image/image.dart' as img;
 
 import 'package:path/path.dart' as path;
-import 'package:pdfium_bindings/pdfium_bindings.dart';
+//import 'package:pdfium_bindings/pdfium_bindings.dart';
+import 'package:pdfium_libs/pdfium_libs.dart';
 import 'rgba_image.dart';
 
 main() async {
@@ -309,7 +310,7 @@ class _SimplePdfRenderServer {
 /// Wrapper class to abstract the PDFium logic
 class PdfRender {
   /// Bindings to PDFium
-  late PDFiumBindings pdfium;
+  late PdfiumLibsBindings pdfium;
 
   /// PDFium configuration
   late Pointer<FPDF_LIBRARY_CONFIG> config;
@@ -326,24 +327,25 @@ class PdfRender {
 
   /// Default constructor to use the class
   PdfRender({String? libraryPath, this.allocator = calloc}) {
-    //for windows
-    var libPath = path.join(Directory.current.path, 'pdfium.dll');
+    const String _libName = 'pdfium';
 
-    if (Platform.isMacOS) {
-      libPath = path.join(Directory.current.path, 'libpdfium.dylib');
-    } else if (Platform.isLinux || Platform.isAndroid) {
-      libPath = path.join(Directory.current.path, 'libpdfium.so');
-    }
-    if (libraryPath != null) {
-      libPath = libraryPath;
-    }
-    late DynamicLibrary dylib;
-    if (Platform.isIOS) {
-      DynamicLibrary.process();
-    } else {
-      dylib = DynamicLibrary.open(libPath);
-    }
-    pdfium = PDFiumBindings(dylib);
+    /// The dynamic library in which the symbols for [PdfiumLibsBindings] can be found.
+    final DynamicLibrary _dylib = () {
+      if (Platform.isMacOS) {
+        return DynamicLibrary.open('$_libName.framework/$_libName');
+      }
+      if (Platform.isIOS) {
+        return DynamicLibrary.process();
+      }
+      if (Platform.isAndroid || Platform.isLinux) {
+        return DynamicLibrary.open('lib$_libName.cr.so');
+      }
+      if (Platform.isWindows) {
+        return DynamicLibrary.open('$_libName.dll');
+      }
+      throw UnsupportedError('Unknown platform: ${Platform.operatingSystem}');
+    }();
+    pdfium = PdfiumLibsBindings(_dylib);
 
     config = allocator<FPDF_LIBRARY_CONFIG>();
     config.ref.version = 2;

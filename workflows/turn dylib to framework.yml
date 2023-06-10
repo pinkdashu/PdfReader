@@ -1,0 +1,25 @@
+name: turn dylib to framework
+on:
+  workflow_dispatch:
+  
+jobs:
+  my_job:
+    name: aaa
+    runs-on: macOS-latest
+    
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v3
+      with:
+        submodules: 'recursive'
+    - name: run
+      run: |
+        pwd
+        ls 
+        lipo -create /Users/runner/work/pdfium_libs/pdfium_libs/ios/Frameworks/libpdfium.dylib -output pdfium
+        lipo -info ./pdfium
+    - name: Publish framework
+      uses: actions/upload-artifact@v3
+      with:
+        name: release-frameworks
+        path: ./pdfium

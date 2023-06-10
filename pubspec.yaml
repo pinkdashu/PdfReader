@@ -44,6 +44,10 @@ dependencies:
     git:
       url: https://github.com/pinkdashu/pdfium_bindings.git
 
+  pdfium_libs:
+    git:
+      url: https://github.com/pinkdashu/pdfium_libs.git
+
 dev_dependencies:
   flutter_test:
     sdk: flutter
