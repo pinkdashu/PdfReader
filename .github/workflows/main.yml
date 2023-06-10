@@ -171,7 +171,7 @@ jobs:
           cd ios && pod update && pod install && cd ..
           flutter build ios --release --no-codesign
           cd ../build/ios
-          sh ../../../scripts/thin-payload.sh iphoneos/Runner.app
+          sh ../../scripts/thin-payload.sh iphoneos/Runner.app
           mkdir -p Payload
           mv iphoneos/Runner.app Payload
           zip -9 ${{env.APP_NAME}}.ipa -r Payload
